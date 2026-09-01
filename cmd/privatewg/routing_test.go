@@ -35,7 +35,7 @@ func TestBuildRoutingConfigsIncludesErrorPages(t *testing.T) {
 		{Host: "paused.example.com", Target: "10.77.0.21:80", Enabled: false},
 	})
 	configText := string(caddy)
-	for _, want := range []string{"VPN diperlukan", "Aplikasi tidak terjangkau", "Rute sedang dijeda", "active.example.com", "paused.example.com", "dial_timeout 30s", "read_timeout 30s", "keepalive 30s", "keepalive_idle_conns 5"} {
+	for _, want := range []string{"VPN diperlukan", "Aplikasi tidak terjangkau", "Rute sedang dijeda", "active.example.com", "paused.example.com", "lb_try_duration 8s", "lb_try_interval 500ms", "dial_timeout 30s", "read_timeout 30s", "keepalive 30s", "keepalive_idle_conns 5"} {
 		if !strings.Contains(configText, want) {
 			t.Errorf("Caddy config missing %q", want)
 		}

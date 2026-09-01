@@ -83,7 +83,7 @@ func buildRoutingConfigs(cfg config, services []service) ([]byte, []byte) {
 func writeServiceSite(caddy *strings.Builder, svc service) {
 	fmt.Fprintf(caddy, "\n%s {\n", svc.Host)
 	if svc.Enabled {
-		fmt.Fprintf(caddy, "    @vpn remote_ip 10.77.0.0/24\n    handle @vpn {\n        reverse_proxy %s {\n            transport http {\n                dial_timeout 30s\n                read_timeout 30s\n                keepalive 30s\n                keepalive_idle_conns 5\n                }\n        }\n    }\n", svc.Target)
+		fmt.Fprintf(caddy, "    @vpn remote_ip 10.77.0.0/24\n    handle @vpn {\n        reverse_proxy %s {\n            lb_try_duration 8s\n            lb_try_interval 500ms\n            transport http {\n                dial_timeout 30s\n                read_timeout 30s\n                keepalive 30s\n                keepalive_idle_conns 5\n                }\n        }\n    }\n", svc.Target)
 		writeErrorPage(caddy, "handle", "VPN diperlukan", "PRIVATE NETWORK", "Hubungkan perangkat ke WireGuard, lalu muat ulang halaman ini.", 403)
 		fmt.Fprint(caddy, "    handle_errors {\n")
 		writeErrorPage(caddy, "", "Aplikasi tidak terjangkau", "UPSTREAM OFFLINE", "Tunnel aktif, tetapi server aplikasi belum merespons. Periksa peer atau layanan di VPS tujuan.", 502)
