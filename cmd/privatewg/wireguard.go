@@ -105,7 +105,9 @@ func (s *server) applyWireGuard() error {
 	var cfg strings.Builder
 	fmt.Fprintf(&cfg, "[Interface]\nPrivateKey = %s\nListenPort = 51820\n", strings.TrimSpace(string(privateBytes)))
 	for _, p := range peers {
-		fmt.Fprintf(&cfg, "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32\n", p.Name, p.PublicKey, p.IP)
+		if p.Enabled {
+			fmt.Fprintf(&cfg, "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32\n", p.Name, p.PublicKey, p.IP)
+		}
 	}
 	path := filepath.Join(s.cfg.WGDir, "wg0.conf")
 	if err := atomicWrite(path, []byte(cfg.String()), 0600); err != nil {

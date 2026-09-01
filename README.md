@@ -31,7 +31,9 @@ sudo rm data/privatewg/bootstrap.conf
 
 Buka `https://panel.example.com` langsung tanpa WireGuard. Import profil bootstrap hanya untuk mengakses aplikasi privat, lalu hapus peer bootstrap setelah peer pengganti dibuat.
 
-Peer baru dapat dibuka kembali dari menu Peer. Halaman detail menyediakan QR, salin config, dan download `.conf`; config disimpan terenkripsi. Peer yang dibuat oleh versi lama tidak memiliki private key tersimpan dan harus dibuat ulang.
+Peer baru dapat dibuka kembali dari menu Peer. Halaman detail menyediakan QR, salin config, download `.conf`, dan toggle akses; config disimpan terenkripsi. Peer yang dibuat oleh versi lama tidak memiliki private key tersimpan dan harus dibuat ulang.
+
+Menu Domain menerima subdomain `PWG_BASE_DOMAIN` maupun domain external. Untuk domain external, buat record DNS publik `A`/`AAAA` menuju VPS hub sebelum mengaktifkan rute. Toggle domain menghapus atau memasang kembali route Caddy/CoreDNS tanpa menghapus datanya.
 
 Aktifkan firewall setelah memastikan SSH berjalan pada TCP `22`. Script memakai default-deny dan mengizinkan SSH `22`; edit script dahulu bila port SSH berbeda:
 

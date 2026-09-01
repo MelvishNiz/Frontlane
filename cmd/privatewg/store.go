@@ -24,6 +24,7 @@ type peer struct {
 	PublicKey        string
 	ConfigCipher     []byte
 	HasConfig        bool
+	Enabled          bool
 	Active           bool
 	CreatedAt        time.Time
 	LastHandshake    time.Time
@@ -35,6 +36,7 @@ type service struct {
 	ID        int64
 	Host      string
 	Target    string
+	Enabled   bool
 	CreatedAt time.Time
 }
 
@@ -59,9 +61,15 @@ func openStore(path string) (*store, error) {
 			return nil, err
 		}
 	}
-	if err := ensureColumn(db, "peers", "config_cipher", "BLOB"); err != nil {
-		db.Close()
-		return nil, err
+	for _, migration := range []struct{ table, column, definition string }{
+		{"peers", "config_cipher", "BLOB"},
+		{"peers", "enabled", "INTEGER NOT NULL DEFAULT 1"},
+		{"services", "enabled", "INTEGER NOT NULL DEFAULT 1"},
+	} {
+		if err := ensureColumn(db, migration.table, migration.column, migration.definition); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
 	return &store{db: db}, nil
 }
@@ -122,7 +130,7 @@ func (s *store) authenticate(username, password string) bool {
 }
 
 func (s *store) listPeers() ([]peer, error) {
-	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),created_at FROM peers ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at FROM peers ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +138,7 @@ func (s *store) listPeers() ([]peer, error) {
 	var result []peer
 	for rows.Next() {
 		var p peer
-		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		p.HasConfig = len(p.ConfigCipher) > 0
@@ -169,9 +177,19 @@ func (s *store) createPeer(name, kind, publicKey string) (peer, error) {
 
 func (s *store) peerByID(id int64) (peer, error) {
 	var p peer
-	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),created_at FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.CreatedAt)
+	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt)
 	p.HasConfig = len(p.ConfigCipher) > 0
 	return p, err
+}
+
+func (s *store) setPeerEnabled(id int64, enabled bool) error {
+	result, err := s.db.Exec(`UPDATE peers SET enabled=? WHERE id=?`, enabled, id)
+	if err == nil {
+		if n, _ := result.RowsAffected(); n == 0 {
+			return sql.ErrNoRows
+		}
+	}
+	return err
 }
 
 func (s *store) savePeerConfig(id int64, cipher []byte) error {
@@ -190,12 +208,12 @@ func (s *store) deletePeer(id int64) error {
 }
 
 func (s *store) restorePeer(p peer) error {
-	_, err := s.db.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,config_cipher,created_at) VALUES(?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.ConfigCipher, p.CreatedAt)
+	_, err := s.db.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,config_cipher,enabled,created_at) VALUES(?,?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.ConfigCipher, p.Enabled, p.CreatedAt)
 	return err
 }
 
 func (s *store) listServices() ([]service, error) {
-	rows, err := s.db.Query(`SELECT id,host,target,created_at FROM services ORDER BY host`)
+	rows, err := s.db.Query(`SELECT id,host,target,enabled,created_at FROM services ORDER BY host`)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +221,7 @@ func (s *store) listServices() ([]service, error) {
 	var result []service
 	for rows.Next() {
 		var svc service
-		if err := rows.Scan(&svc.ID, &svc.Host, &svc.Target, &svc.CreatedAt); err != nil {
+		if err := rows.Scan(&svc.ID, &svc.Host, &svc.Target, &svc.Enabled, &svc.CreatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, svc)
@@ -222,8 +240,18 @@ func (s *store) createService(host, target string) (service, error) {
 
 func (s *store) serviceByID(id int64) (service, error) {
 	var svc service
-	err := s.db.QueryRow(`SELECT id,host,target,created_at FROM services WHERE id=?`, id).Scan(&svc.ID, &svc.Host, &svc.Target, &svc.CreatedAt)
+	err := s.db.QueryRow(`SELECT id,host,target,enabled,created_at FROM services WHERE id=?`, id).Scan(&svc.ID, &svc.Host, &svc.Target, &svc.Enabled, &svc.CreatedAt)
 	return svc, err
+}
+
+func (s *store) setServiceEnabled(id int64, enabled bool) error {
+	result, err := s.db.Exec(`UPDATE services SET enabled=? WHERE id=?`, enabled, id)
+	if err == nil {
+		if n, _ := result.RowsAffected(); n == 0 {
+			return sql.ErrNoRows
+		}
+	}
+	return err
 }
 
 func (s *store) deleteService(id int64) error {
@@ -237,7 +265,7 @@ func (s *store) deleteService(id int64) error {
 }
 
 func (s *store) restoreService(svc service) error {
-	_, err := s.db.Exec(`INSERT INTO services(id,host,target,created_at) VALUES(?,?,?,?)`, svc.ID, svc.Host, svc.Target, svc.CreatedAt)
+	_, err := s.db.Exec(`INSERT INTO services(id,host,target,enabled,created_at) VALUES(?,?,?,?,?)`, svc.ID, svc.Host, svc.Target, svc.Enabled, svc.CreatedAt)
 	return err
 }
 

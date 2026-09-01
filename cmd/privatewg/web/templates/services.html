@@ -1,19 +1,66 @@
 {{template "header" .}}
-<div class="split form-layout">
-<section class="panel sticky-panel">
-  <p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Tambah domain</h2>
-  <p class="muted">Domain mengarah ke Laravel lokal atau IP WireGuard VPS lain.</p>
-  <form method="post" action="/services" class="stack-form">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>Domain<input name="host" required placeholder="app.{{.BaseDomain}}" autocomplete="off"></label>
-    <label>Target<input name="target" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Gunakan <code>10.77.0.x:port</code> untuk VPS lain.</small></label>
-    <button class="primary" type="submit">Tambahkan rute</button>
-  </form>
+<section class="directory-shell">
+  <div class="directory-toolbar">
+    <div>
+      <p class="eyebrow">PRIVATE ROUTE DIRECTORY</p>
+      <h2>Domain & tujuan</h2>
+      <p class="muted">Domain internal maupun external tetap hanya dapat dibuka dari jaringan VPN.</p>
+    </div>
+    <div class="toolbar-actions">
+      <span class="directory-count"><b>{{len .Services}}</b><small>rute terdaftar</small></span>
+      <button class="primary" type="button" data-dialog-open="service-dialog"><span aria-hidden="true">+</span> Tambah domain</button>
+    </div>
+  </div>
+
+  <aside class="dns-note">
+    <span class="dns-note-icon">DNS</span>
+    <p><b>Domain external didukung.</b><small>Arahkan DNS A/AAAA domain ke VPS ini. Caddy menerbitkan SSL otomatis; akses aplikasi tetap dibatasi ke subnet <code>10.77.0.0/24</code>.</small></p>
+  </aside>
+
+  {{if .Services}}
+  <div class="resource-list service-resource-list">
+    <div class="resource-header service-columns" aria-hidden="true"><span>Domain</span><span>Tujuan upstream</span><span>Tipe</span><span>Akses</span><span></span></div>
+    {{range .Services}}
+    <article class="resource-row service-columns {{if not .Enabled}}is-disabled{{end}}">
+      <div class="resource-identity domain-identity">
+        <span class="domain-icon">https</span>
+        <span><b>{{.Host}}</b><small>{{if .Enabled}}Route aktif{{else}}Route dijeda{{end}} · dibuat {{ago .CreatedAt}}</small></span>
+      </div>
+      <code class="target-chip">{{.Target}}</code>
+      <span class="scope-badge {{if not (internalDomain .Host)}}external{{end}}">{{if internalDomain .Host}}Internal{{else}}External{{end}}</span>
+      <form method="post" action="/services/{{.ID}}/toggle" class="toggle-form">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} domain {{.Host}}"><span></span></button>
+      </form>
+      <div class="row-actions">
+        <a class="row-detail" href="https://{{.Host}}" target="_blank" rel="noopener">Buka</a>
+        <form method="post" action="/services/{{.ID}}/delete" data-confirm="Hapus domain {{.Host}}?">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button class="icon-danger" type="submit" aria-label="Hapus domain {{.Host}}">×</button>
+        </form>
+      </div>
+    </article>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty-state"><span>◇</span><h3>Belum ada domain</h3><p>Hubungkan domain pertama ke aplikasi lokal atau VPS peer.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Tambah domain</button></div>
+  {{end}}
 </section>
-<section class="panel wide-panel">
-  <div class="panel-head"><div><p class="eyebrow">CADDY + COREDNS</p><h2>Domain privat</h2></div><span class="badge">{{len .Services}} rute</span></div>
-  {{if .Services}}<div class="route-list">{{range .Services}}<div><span class="route-protocol">HTTPS</span><strong>{{.Host}}</strong><span class="route-line"></span><code>{{.Target}}</code><form method="post" action="/services/{{.ID}}/delete" data-confirm="Hapus domain ini?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="danger" type="submit">Hapus</button></form></div>{{end}}</div>
-  {{else}}<div class="empty">Belum ada domain privat.</div>{{end}}
-</section>
-</div>
+
+<dialog class="app-dialog" id="service-dialog" {{if .Error}}data-open-on-error{{end}}>
+  <div class="dialog-card">
+    <div class="dialog-head">
+      <div><p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Tambah domain</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog">×</button>
+    </div>
+    <p class="muted">Gunakan subdomain bawaan atau domain external milik Anda.</p>
+    {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
+    <form method="post" action="/services" class="stack-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Domain<input name="host" required placeholder="app.{{.BaseDomain}} atau app.domain-lain.com" autocomplete="off"><small>Tanpa <code>https://</code> dan path.</small></label>
+      <label>Target aplikasi<input name="target" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Loopback lokal atau <code>10.77.0.x:port</code> untuk VPS peer.</small></label>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Batal</button><button class="primary" type="submit">Tambahkan rute</button></div>
+    </form>
+  </div>
+</dialog>
 {{template "footer" .}}

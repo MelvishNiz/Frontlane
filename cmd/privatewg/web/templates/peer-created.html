@@ -1,7 +1,14 @@
 {{template "header" .}}
 <div class="detail-toolbar">
   <a class="back-link" href="/peers">‹ Semua peer</a>
-  <span class="peer-state {{if .Peer.Active}}online{{end}}"><i></i>{{if .Peer.Active}}Terhubung{{else}}Tidak aktif{{end}}</span>
+  <div class="detail-access">
+    <span class="peer-state {{if and .Peer.Enabled .Peer.Active}}online{{end}}"><i></i>{{if not .Peer.Enabled}}Akses dijeda{{else if .Peer.Active}}Terhubung{{else}}Tidak terhubung{{end}}</span>
+    <form method="post" action="/peers/{{.Peer.ID}}/toggle">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="next" value="/peers/{{.Peer.ID}}">
+      <button class="switch-control" type="submit" role="switch" aria-checked="{{.Peer.Enabled}}" aria-label="{{if .Peer.Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} peer {{.Peer.Name}}"><span></span></button>
+    </form>
+  </div>
 </div>
 <section class="peer-hero panel">
   <div class="peer-hero-title">

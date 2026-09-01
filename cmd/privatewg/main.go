@@ -89,6 +89,9 @@ func main() {
 		"bytes":   humanBytes,
 		"ago":     timeAgo,
 		"initial": initial,
+		"internalDomain": func(host string) bool {
+			return host == cfg.BaseDomain || strings.HasSuffix(host, "."+cfg.BaseDomain)
+		},
 	}).ParseFS(assets, "web/templates/*.html")
 	if err != nil {
 		log.Fatal(err)
@@ -120,9 +123,11 @@ func main() {
 	mux.HandleFunc("GET /peers/{id}", s.auth(s.peerDetail))
 	mux.HandleFunc("GET /peers/{id}/config", s.auth(s.downloadPeerConfig))
 	mux.HandleFunc("GET /peers/{id}/qr.png", s.auth(s.peerQRCode))
+	mux.HandleFunc("POST /peers/{id}/toggle", s.auth(s.togglePeer))
 	mux.HandleFunc("POST /peers/{id}/delete", s.auth(s.deletePeer))
 	mux.HandleFunc("GET /services", s.auth(s.servicesPage))
 	mux.HandleFunc("POST /services", s.auth(s.createService))
+	mux.HandleFunc("POST /services/{id}/toggle", s.auth(s.toggleService))
 	mux.HandleFunc("POST /services/{id}/delete", s.auth(s.deleteService))
 
 	h := securityHeaders(mux)
@@ -331,6 +336,39 @@ func (s *server) peerConfigResponse(w http.ResponseWriter, r *http.Request) (pee
 	return p, config, true
 }
 
+func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		return
+	}
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	p, err := s.store.peerByID(id)
+	if err != nil {
+		http.Error(w, "Peer tidak ditemukan", http.StatusNotFound)
+		return
+	}
+	if err := s.store.setPeerEnabled(id, !p.Enabled); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.applyWireGuard(); err != nil {
+		_ = s.store.setPeerEnabled(id, p.Enabled)
+		_ = s.applyWireGuard()
+		http.Error(w, "Status peer gagal diubah: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	state := "dinonaktifkan"
+	if !p.Enabled {
+		state = "diaktifkan"
+	}
+	s.store.audit("peer.toggle", p.Name+" "+state, clientIP(r))
+	next := r.FormValue("next")
+	if next != fmt.Sprintf("/peers/%d", id) {
+		next = "/peers"
+	}
+	http.Redirect(w, r, next+"?notice=Peer+"+state, http.StatusSeeOther)
+}
+
 func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
 		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
@@ -385,6 +423,35 @@ func (s *server) createService(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.audit("service.create", svc.Host+" "+svc.Target, clientIP(r))
 	http.Redirect(w, r, "/services?notice=Layanan+ditambahkan", http.StatusSeeOther)
+}
+
+func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		return
+	}
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	svc, err := s.store.serviceByID(id)
+	if err != nil {
+		http.Error(w, "Layanan tidak ditemukan", http.StatusNotFound)
+		return
+	}
+	if err := s.store.setServiceEnabled(id, !svc.Enabled); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.setServiceEnabled(id, svc.Enabled)
+		_ = s.writeRoutingFiles()
+		http.Error(w, "Status domain gagal diubah: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	state := "dinonaktifkan"
+	if !svc.Enabled {
+		state = "diaktifkan"
+	}
+	s.store.audit("service.toggle", svc.Host+" "+state, clientIP(r))
+	http.Redirect(w, r, "/services?notice=Domain+"+state, http.StatusSeeOther)
 }
 
 func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {

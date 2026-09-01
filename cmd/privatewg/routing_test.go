@@ -9,7 +9,8 @@ func TestValidateService(t *testing.T) {
 	}{
 		{"app.example.com", "127.0.0.1:8081", true},
 		{"remote.example.com", "10.77.0.20:80", true},
-		{"evil.test", "10.77.0.20:80", false},
+		{"app.external.test", "10.77.0.20:80", true},
+		{"panel.example.com", "10.77.0.20:80", false},
 		{"app.example.com", "8.8.8.8:80", false},
 		{"app.example.com", "10.77.0.20:99999", false},
 		{"app.example.com", "localhost:8080/path", false},

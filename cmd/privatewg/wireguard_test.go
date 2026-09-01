@@ -48,6 +48,37 @@ func TestEncryptedPeerConfigRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEnabledStateRoundTrip(t *testing.T) {
+	st, err := openStore(filepath.Join(t.TempDir(), "privatewg.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	p, err := st.createPeer("phone", "client", "public-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := st.createService("app.external.test", "10.77.0.20:80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Enabled || !svc.Enabled {
+		t.Fatal("new peers and services must be enabled")
+	}
+	if err := st.setPeerEnabled(p.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.setServiceEnabled(svc.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = st.peerByID(p.ID)
+	svc, _ = st.serviceByID(svc.ID)
+	if p.Enabled || svc.Enabled {
+		t.Fatal("disabled state must persist")
+	}
+}
+
 func TestQRPNG(t *testing.T) {
 	if _, err := os.Stat("/usr/bin/qrencode"); err != nil {
 		t.Skip("qrencode unavailable")

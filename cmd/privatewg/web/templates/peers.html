@@ -1,46 +1,64 @@
 {{template "header" .}}
-<div class="workspace-grid">
-  <section class="panel create-card">
-    <div class="section-icon">+</div>
-    <p class="eyebrow">NEW SECURE TUNNEL</p>
-    <h2>Tambah peer</h2>
-    <p class="muted">Buat akses untuk perangkat Anda atau sambungkan VPS aplikasi.</p>
-    <form method="post" action="/peers" class="stack-form">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Nama peer<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="laptop-syahrul" autocomplete="off"><small>Huruf, angka, titik, garis bawah, atau strip.</small></label>
-      <label>Jenis perangkat<select name="kind"><option value="client">Klien — laptop / ponsel</option><option value="server">Server — VPS aplikasi</option></select></label>
-      <button class="primary full" type="submit"><span>Buat peer</span><span aria-hidden="true">↗</span></button>
-    </form>
-  </section>
-
-  <section class="panel peer-directory">
-    <div class="panel-head">
-      <div><p class="eyebrow">NETWORK DIRECTORY</p><h2>Peer terdaftar</h2><p class="muted">Klik peer untuk melihat QR dan mengunduh konfigurasi.</p></div>
-      <span class="count-badge"><b>{{len .Peers}}</b><small>dari 253</small></span>
+<section class="directory-shell">
+  <div class="directory-toolbar">
+    <div>
+      <p class="eyebrow">SECURE TUNNEL DIRECTORY</p>
+      <h2>Perangkat & server</h2>
+      <p class="muted">Kelola akses jaringan, status tunnel, dan konfigurasi setiap peer.</p>
     </div>
-    {{if .Peers}}
-    <div class="peer-list">
-      {{range .Peers}}
-      <article class="peer-row">
-        <a class="peer-main" href="/peers/{{.ID}}">
-          <span class="device-icon {{.Kind}}"><i></i></span>
-          <span class="peer-identity"><b>{{.Name}}</b><small>{{if eq .Kind "client"}}Perangkat klien{{else}}Server aplikasi{{end}}</small></span>
-          <code>{{.IP}}</code>
-          <span class="peer-state {{if .Active}}online{{end}}"><i></i>{{ago .LastHandshake}}</span>
-          <span class="traffic"><small>↓ {{bytes .ReceivedBytes}}</small><small>↑ {{bytes .TransmittedBytes}}</small></span>
-          <span class="config-state {{if .HasConfig}}ready{{end}}">{{if .HasConfig}}QR + config{{else}}Config lama{{end}}</span>
-          <span class="chevron">›</span>
-        </a>
+    <div class="toolbar-actions">
+      <span class="directory-count"><b>{{len .Peers}}</b><small>peer terdaftar</small></span>
+      <button class="primary" type="button" data-dialog-open="peer-dialog"><span aria-hidden="true">+</span> Tambah peer</button>
+    </div>
+  </div>
+
+  {{if .Peers}}
+  <div class="resource-list peer-resource-list">
+    <div class="resource-header peer-columns" aria-hidden="true">
+      <span>Peer</span><span>Alamat</span><span>Koneksi</span><span>Traffic</span><span>Akses</span><span></span>
+    </div>
+    {{range .Peers}}
+    <article class="resource-row peer-columns {{if not .Enabled}}is-disabled{{end}}">
+      <a class="resource-identity" href="/peers/{{.ID}}">
+        <span class="device-icon {{.Kind}}"><i></i></span>
+        <span><b>{{.Name}}</b><small>{{if eq .Kind "client"}}Perangkat klien{{else}}Server aplikasi{{end}} · dibuat {{ago .CreatedAt}}</small></span>
+      </a>
+      <code class="resource-address">{{.IP}}</code>
+      <span class="peer-state {{if and .Enabled .Active}}online{{end}}"><i></i>{{if not .Enabled}}Dijeda{{else if .Active}}Terhubung{{else}}{{ago .LastHandshake}}{{end}}</span>
+      <span class="traffic"><small>↓ {{bytes .ReceivedBytes}}</small><small>↑ {{bytes .TransmittedBytes}}</small></span>
+      <form method="post" action="/peers/{{.ID}}/toggle" class="toggle-form">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} peer {{.Name}}"><span></span></button>
+      </form>
+      <div class="row-actions">
+        <a class="row-detail" href="/peers/{{.ID}}" aria-label="Buka detail {{.Name}}">Detail</a>
         <form method="post" action="/peers/{{.ID}}/delete" data-confirm="Hapus peer {{.Name}}? Akses perangkat akan langsung terputus.">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <button class="icon-danger" type="submit" aria-label="Hapus peer {{.Name}}">×</button>
         </form>
-      </article>
-      {{end}}
-    </div>
-    {{else}}
-    <div class="empty-state"><span>⌁</span><h3>Jaringan masih kosong</h3><p>Buat peer pertama untuk mulai menghubungkan perangkat.</p></div>
+      </div>
+    </article>
     {{end}}
-  </section>
-</div>
+  </div>
+  {{else}}
+  <div class="empty-state"><span>⌁</span><h3>Jaringan masih kosong</h3><p>Tambah peer pertama untuk menghubungkan perangkat.</p><button class="secondary" type="button" data-dialog-open="peer-dialog">Tambah peer</button></div>
+  {{end}}
+</section>
+
+<dialog class="app-dialog" id="peer-dialog" {{if .Error}}data-open-on-error{{end}}>
+  <div class="dialog-card">
+    <div class="dialog-head">
+      <div><p class="eyebrow">NEW SECURE TUNNEL</p><h2>Tambah peer</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog">×</button>
+    </div>
+    <p class="muted">Buat profil untuk laptop, ponsel, atau VPS aplikasi.</p>
+    {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
+    <form method="post" action="/peers" class="stack-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Nama peer<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="laptop-syahrul" autocomplete="off"><small>Huruf, angka, titik, garis bawah, atau strip.</small></label>
+      <label>Jenis perangkat<select name="kind"><option value="client">Klien — laptop / ponsel</option><option value="server">Server — VPS aplikasi</option></select></label>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Batal</button><button class="primary" type="submit">Buat peer</button></div>
+    </form>
+  </div>
+</dialog>
 {{template "footer" .}}

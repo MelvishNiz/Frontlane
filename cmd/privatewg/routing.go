@@ -23,8 +23,8 @@ func validateService(host, target, baseDomain string) error {
 	if len(host) > 253 || !hostnamePattern.MatchString(host) {
 		return errors.New("domain tidak valid")
 	}
-	if host != baseDomain && !strings.HasSuffix(host, "."+baseDomain) {
-		return fmt.Errorf("domain harus berada di bawah %s", baseDomain)
+	if host == "panel."+baseDomain {
+		return errors.New("domain panel dicadangkan untuk PrivateWG")
 	}
 	u, err := url.Parse("http://" + target)
 	if err != nil || u.Host != target || u.Path != "" || u.User != nil {
@@ -58,12 +58,16 @@ func (s *server) writeRoutingFiles() error {
 	fmt.Fprintf(&caddy, "{\n    email %s\n    admin 127.0.0.1:2019\n}\n\n", s.cfg.ACMEEmail)
 	fmt.Fprintf(&caddy, "panel.%s {\n    reverse_proxy 10.77.0.1:8080 {\n        header_up X-Real-IP {remote_host}\n    }\n    tls {\n        issuer acme {\n            disable_tlsalpn_challenge\n        }\n    }\n}\n", s.cfg.BaseDomain)
 	for _, svc := range services {
-		fmt.Fprintf(&caddy, "\n%s {\n    @vpn remote_ip 10.77.0.0/24\n    handle @vpn {\n        reverse_proxy %s\n    }\n    respond 403\n    tls {\n        issuer acme {\n            disable_tlsalpn_challenge\n        }\n    }\n}\n", svc.Host, svc.Target)
+		if svc.Enabled {
+			fmt.Fprintf(&caddy, "\n%s {\n    @vpn remote_ip 10.77.0.0/24\n    handle @vpn {\n        reverse_proxy %s\n    }\n    respond 403\n    tls {\n        issuer acme {\n            disable_tlsalpn_challenge\n        }\n    }\n}\n", svc.Host, svc.Target)
+		}
 	}
 	var hosts strings.Builder
 	fmt.Fprintf(&hosts, "10.77.0.1 panel.%s\n", s.cfg.BaseDomain)
 	for _, svc := range services {
-		fmt.Fprintf(&hosts, "10.77.0.1 %s\n", svc.Host)
+		if svc.Enabled {
+			fmt.Fprintf(&hosts, "10.77.0.1 %s\n", svc.Host)
+		}
 	}
 	configBytes := []byte(caddy.String())
 	if err := reloadCaddy(configBytes); err != nil {

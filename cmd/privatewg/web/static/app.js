@@ -4,6 +4,22 @@ document.addEventListener("submit", (event) => {
 });
 
 document.addEventListener("click", async (event) => {
+  const openButton = event.target.closest("[data-dialog-open]");
+  if (openButton) {
+    const dialog = document.getElementById(openButton.dataset.dialogOpen);
+    if (dialog) {
+      dialog.showModal();
+      dialog.querySelector("input:not([type=hidden]), select")?.focus();
+    }
+    return;
+  }
+
+  const closeButton = event.target.closest("[data-dialog-close]");
+  if (closeButton) {
+    closeButton.closest("dialog")?.close();
+    return;
+  }
+
   const button = event.target.closest("[data-copy-target]");
   if (!button) return;
 
@@ -20,3 +36,11 @@ document.addEventListener("click", async (event) => {
     document.execCommand("copy");
   }
 });
+
+document.querySelectorAll("dialog").forEach((dialog) => {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+});
+
+document.querySelector("dialog[data-open-on-error]")?.showModal();
