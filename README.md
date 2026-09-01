@@ -69,14 +69,32 @@ Startup pertama mengunduh Laravel melalui Composer ke volume `laravel_example`. 
 
 ## Laravel pada VPS lain
 
-1. Buat peer jenis Server dari panel.
-2. Import konfigurasi pada VPS aplikasi sebagai `wg0`.
-3. Bind web server ke IP peer, misalnya `10.77.0.20:80`.
-4. Izinkan port aplikasi hanya dari interface `wg0` pada firewall VPS tersebut.
-5. Buat record DNS publik domain menuju IP VPS hub, bukan VPS aplikasi.
-6. Tambahkan domain di panel dengan target `10.77.0.20:80`.
+1. Buat peer jenis Server dari panel, lalu download konfigurasinya.
+2. Simpan konfigurasi tersebut sebagai `client/config/wg0.conf` pada VPS aplikasi.
+3. Jalankan client WireGuard:
 
-Traffic browser berhenti di Caddy hub. Caddy meneruskan request ke VPS aplikasi melalui WireGuard.
+```bash
+chmod 600 client/config/wg0.conf
+docker compose -f client/compose.yaml up -d
+docker compose -f client/compose.yaml logs -f
+```
+
+Container memakai network namespace host. Interface `wg0` dan rute `10.77.0.0/24` muncul langsung pada VPS, sama seperti instalasi WireGuard native. Kernel host tetap harus mendukung WireGuard; bila pembuatan interface gagal, jalankan `sudo modprobe wireguard` pada host.
+
+4. Bind web server ke IP peer, misalnya `10.77.0.20:80`, atau `0.0.0.0:80` dengan firewall yang membatasi akses. Layanan yang hanya bind ke `127.0.0.1` tidak dapat dicapai melalui IP peer.
+5. Izinkan port aplikasi hanya dari interface `wg0` pada firewall VPS tersebut.
+6. Buat record DNS publik domain menuju IP VPS hub, bukan VPS aplikasi.
+7. Tambahkan domain di panel dengan target `10.77.0.20:80`.
+
+Verifikasi pada VPS aplikasi:
+
+```bash
+ip address show wg0
+sudo wg show wg0
+ping -c 3 10.77.0.1
+```
+
+Traffic browser berhenti di Caddy hub. Caddy meneruskan request ke VPS aplikasi melalui WireGuard. File `client/config/wg0.conf` berisi private key, diabaikan oleh Git dan Docker build context.
 
 ## Operasi
 

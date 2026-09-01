@@ -4,5 +4,6 @@ data/privatewg
 data/wireguard
 data/caddy
 data/coredns
+client/config
 privatewg
 README.md

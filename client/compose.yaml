@@ -1,0 +1,23 @@
+services:
+  wireguard:
+    image: ${PRIVATEWG_CLIENT_IMAGE:-ghcr.io/melvishniz/privatewg-client:latest}
+    build: .
+    container_name: privatewg-client
+    restart: unless-stopped
+    network_mode: host
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config:/config:ro
+    healthcheck:
+      test: ["CMD", "wg", "show", "wg0"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    stop_grace_period: 15s
