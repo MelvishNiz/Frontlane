@@ -55,7 +55,7 @@
     {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
     <form method="post" action="/peers" class="stack-form">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Nama peer<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="laptop-syahrul" autocomplete="off"><small>Huruf, angka, titik, garis bawah, atau strip.</small></label>
+      <label>Nama peer<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="laptop" autocomplete="off"><small>Huruf, angka, titik, garis bawah, atau strip.</small></label>
       <label>Jenis perangkat<select name="kind"><option value="client">Klien — laptop / ponsel</option><option value="server">Server — VPS aplikasi</option></select></label>
       <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Batal</button><button class="primary" type="submit">Buat peer</button></div>
     </form>
