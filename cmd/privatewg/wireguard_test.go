@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestEncryptedPeerConfigRoundTrip(t *testing.T) {
@@ -76,6 +77,51 @@ func TestEnabledStateRoundTrip(t *testing.T) {
 	svc, _ = st.serviceByID(svc.ID)
 	if p.Enabled || svc.Enabled {
 		t.Fatal("disabled state must persist")
+	}
+}
+
+func TestPeerActive(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	for _, test := range []struct {
+		name      string
+		enabled   bool
+		handshake int64
+		want      bool
+	}{
+		{"recent handshake", true, now.Add(-2 * time.Minute).Unix(), true},
+		{"stale handshake", true, now.Add(-3 * time.Minute).Unix(), false},
+		{"disabled peer", false, now.Add(-time.Minute).Unix(), false},
+		{"future handshake", true, now.Add(time.Minute).Unix(), false},
+		{"never connected", true, 0, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := peerActive(test.enabled, test.handshake, now); got != test.want {
+				t.Fatalf("peerActive() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestLastHandshakePersists(t *testing.T) {
+	st, err := openStore(filepath.Join(t.TempDir(), "privatewg.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p, err := st.createPeer("phone", "client", "public-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := time.Unix(1_800_000_000, 0).UTC()
+	if err := st.savePeerHandshake(p.ID, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.peerByID(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.LastHandshake.Equal(want) {
+		t.Fatalf("last handshake = %v, want %v", got.LastHandshake, want)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -86,8 +87,14 @@ func main() {
 	}
 
 	tpl, err := template.New("").Funcs(template.FuncMap{
-		"bytes":   humanBytes,
-		"ago":     timeAgo,
+		"bytes": humanBytes,
+		"ago":   timeAgo,
+		"unix": func(t time.Time) int64 {
+			if t.IsZero() {
+				return 0
+			}
+			return t.Unix()
+		},
 		"initial": initial,
 		"internalDomain": func(host string) bool {
 			return host == cfg.BaseDomain || strings.HasSuffix(host, "."+cfg.BaseDomain)
@@ -121,6 +128,7 @@ func main() {
 	mux.HandleFunc("GET /peers", s.auth(s.peersPage))
 	mux.HandleFunc("POST /peers", s.auth(s.createPeer))
 	mux.HandleFunc("GET /peers/{id}", s.auth(s.peerDetail))
+	mux.HandleFunc("GET /api/peers/status", s.auth(s.peerStatuses))
 	mux.HandleFunc("GET /peers/{id}/config", s.auth(s.downloadPeerConfig))
 	mux.HandleFunc("GET /peers/{id}/qr.png", s.auth(s.peerQRCode))
 	mux.HandleFunc("POST /peers/{id}/toggle", s.auth(s.togglePeer))
@@ -288,6 +296,36 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, "peer-created.html", data)
+}
+
+type peerStatusResponse struct {
+	ID            int64 `json:"id"`
+	Enabled       bool  `json:"enabled"`
+	Active        bool  `json:"active"`
+	LastHandshake int64 `json:"lastHandshake"`
+	Received      int64 `json:"received"`
+	Transmitted   int64 `json:"transmitted"`
+}
+
+func (s *server) peerStatuses(w http.ResponseWriter, r *http.Request) {
+	peers, err := s.store.listPeers()
+	if err != nil {
+		http.Error(w, "Status peer gagal dimuat", http.StatusInternalServerError)
+		return
+	}
+	if _, err := s.wireGuardStatus(peers); err != nil {
+		http.Error(w, "Status WireGuard gagal dimuat", http.StatusServiceUnavailable)
+		return
+	}
+	response := make([]peerStatusResponse, len(peers))
+	for i, p := range peers {
+		response[i] = peerStatusResponse{ID: p.ID, Enabled: p.Enabled, Active: p.Active, Received: p.ReceivedBytes, Transmitted: p.TransmittedBytes}
+		if !p.LastHandshake.IsZero() {
+			response[i].LastHandshake = p.LastHandshake.Unix()
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (s *server) downloadPeerConfig(w http.ResponseWriter, r *http.Request) {

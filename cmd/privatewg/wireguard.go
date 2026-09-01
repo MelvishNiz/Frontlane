@@ -182,19 +182,27 @@ func (s *server) wireGuardStatus(peers []peer) (wgStatus, error) {
 		tx, _ := strconv.ParseInt(fields[6], 10, 64)
 		status.Received += rx
 		status.Transmitted += tx
-		active := handshake > 0 && time.Since(time.Unix(handshake, 0)) < 3*time.Minute
-		if active {
-			status.ActiveCount++
-		}
 		if p := byKey[fields[0]]; p != nil {
-			p.Active = active
+			p.Active = peerActive(p.Enabled, handshake, time.Now())
+			if p.Active {
+				status.ActiveCount++
+			}
 			if handshake > 0 {
-				p.LastHandshake = time.Unix(handshake, 0)
+				latest := time.Unix(handshake, 0)
+				if latest.After(p.LastHandshake) {
+					_ = s.store.savePeerHandshake(p.ID, latest)
+				}
+				p.LastHandshake = latest
 			}
 			p.ReceivedBytes, p.TransmittedBytes = rx, tx
 		}
 	}
 	return status, nil
+}
+
+func peerActive(enabled bool, handshake int64, now time.Time) bool {
+	age := now.Sub(time.Unix(handshake, 0))
+	return enabled && handshake > 0 && age >= 0 && age < 3*time.Minute
 }
 
 func (s *server) storeEncryptedConfig(peerID int64, config string) error {

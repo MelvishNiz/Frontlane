@@ -44,3 +44,68 @@ document.querySelectorAll("dialog").forEach((dialog) => {
 });
 
 document.querySelector("dialog[data-open-on-error]")?.showModal();
+
+const peerRows = [...document.querySelectorAll("[data-peer-id]")];
+const relativeTime = new Intl.RelativeTimeFormat("id", { numeric: "auto" });
+
+function formatRelative(timestamp) {
+  if (!timestamp) return "belum pernah";
+  const seconds = Math.round(timestamp - Date.now() / 1000);
+  const ranges = [[86400, "day"], [3600, "hour"], [60, "minute"]];
+  for (const [size, unit] of ranges) {
+    if (Math.abs(seconds) >= size) return relativeTime.format(Math.round(seconds / size), unit);
+  }
+  return "baru saja";
+}
+
+function formatBytes(value) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let unit = 0;
+  let size = value;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(1)} ${units[unit]}`;
+}
+
+function refreshRelativeTimes() {
+  document.querySelectorAll("[data-timestamp]").forEach((element) => {
+    element.textContent = formatRelative(Number(element.dataset.timestamp));
+  });
+}
+
+function renderPeerStatus(root, peer) {
+  const state = root.querySelector("[data-peer-state]");
+  const stateText = root.querySelector("[data-peer-state-text]");
+  state?.classList.toggle("online", peer.enabled && peer.active);
+  if (stateText) stateText.textContent = !peer.enabled ? (root.classList.contains("peer-detail") ? "Akses dijeda" : "Dijeda") : peer.active ? "Terhubung" : "Tidak terhubung";
+
+  const handshake = root.querySelector("[data-peer-handshake]");
+  if (handshake) {
+    handshake.dataset.timestamp = peer.lastHandshake;
+    handshake.textContent = formatRelative(peer.lastHandshake);
+  }
+  const received = root.querySelector("[data-peer-rx]");
+  const transmitted = root.querySelector("[data-peer-tx]");
+  if (received) received.textContent = formatBytes(peer.received);
+  if (transmitted) transmitted.textContent = formatBytes(peer.transmitted);
+}
+
+async function refreshPeerStatuses() {
+  if (!peerRows.length) return;
+  try {
+    const response = await fetch("/api/peers/status");
+    if (!response.ok) return;
+    const statuses = new Map((await response.json()).map((peer) => [String(peer.id), peer]));
+    peerRows.forEach((root) => {
+      const peer = statuses.get(root.dataset.peerId);
+      if (peer) renderPeerStatus(root, peer);
+    });
+  } catch {}
+}
+
+refreshRelativeTimes();
+refreshPeerStatuses();
+window.setInterval(refreshRelativeTimes, 30000);
+window.setInterval(refreshPeerStatuses, 15000);

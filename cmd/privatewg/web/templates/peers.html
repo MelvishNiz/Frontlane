@@ -18,14 +18,14 @@
       <span>Peer</span><span>Alamat</span><span>Koneksi</span><span>Traffic</span><span>Akses</span><span></span>
     </div>
     {{range .Peers}}
-    <article class="resource-row peer-columns {{if not .Enabled}}is-disabled{{end}}">
+    <article class="resource-row peer-columns {{if not .Enabled}}is-disabled{{end}}" data-peer-id="{{.ID}}">
       <a class="resource-identity" href="/peers/{{.ID}}">
         <span class="device-icon {{.Kind}}"><i></i></span>
         <span><b>{{.Name}}</b><small>{{if eq .Kind "client"}}Perangkat klien{{else}}Server aplikasi{{end}} · dibuat {{ago .CreatedAt}}</small></span>
       </a>
       <code class="resource-address">{{.IP}}</code>
-      <span class="peer-state {{if and .Enabled .Active}}online{{end}}"><i></i>{{if not .Enabled}}Dijeda{{else if .Active}}Terhubung{{else}}{{ago .LastHandshake}}{{end}}</span>
-      <span class="traffic"><small>↓ {{bytes .ReceivedBytes}}</small><small>↑ {{bytes .TransmittedBytes}}</small></span>
+      <span class="peer-state {{if and .Enabled .Active}}online{{end}}" data-peer-state><i></i><span><b data-peer-state-text>{{if not .Enabled}}Dijeda{{else if .Active}}Terhubung{{else}}Tidak terhubung{{end}}</b><small>Handshake: <span data-peer-handshake data-timestamp="{{unix .LastHandshake}}">{{ago .LastHandshake}}</span></small></span></span>
+      <span class="traffic"><small>↓ <span data-peer-rx>{{bytes .ReceivedBytes}}</span></small><small>↑ <span data-peer-tx>{{bytes .TransmittedBytes}}</span></small></span>
       <form method="post" action="/peers/{{.ID}}/toggle" class="toggle-form">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} peer {{.Name}}"><span></span></button>

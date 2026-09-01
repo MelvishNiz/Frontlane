@@ -173,7 +173,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); outline: 
 .peer-identity small { margin-top: 3px; color: #8699a6; font-size: 10px; }
 .peer-main code { color: #3f6275; font-size: 11px; }
 .peer-state { display: inline-flex; gap: 7px; align-items: center; color: #8396a3; font-size: 10px; }
-.peer-state i { width: 7px; height: 7px; background: #b7c4cc; border-radius: 50%; }
+.peer-state i { width: 7px; height: 7px; flex: none; background: #b7c4cc; border-radius: 50%; }
+.peer-state > span, .peer-state b, .peer-state small { display: block; }
+.peer-state b { color: inherit; font-size: 10px; }
+.peer-state small { margin-top: 3px; color: #8396a3; font-size: 8px; white-space: nowrap; }
 .peer-state.online { color: #138165; }
 .peer-state.online i { background: #31c48d; box-shadow: 0 0 0 4px rgba(49, 196, 141, 0.11); }
 .traffic small { display: block; color: #718895; font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; line-height: 1.6; }

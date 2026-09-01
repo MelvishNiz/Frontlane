@@ -64,6 +64,7 @@ func openStore(path string) (*store, error) {
 	for _, migration := range []struct{ table, column, definition string }{
 		{"peers", "config_cipher", "BLOB"},
 		{"peers", "enabled", "INTEGER NOT NULL DEFAULT 1"},
+		{"peers", "last_handshake", "DATETIME NOT NULL DEFAULT '0001-01-01T00:00:00Z'"},
 		{"services", "enabled", "INTEGER NOT NULL DEFAULT 1"},
 	} {
 		if err := ensureColumn(db, migration.table, migration.column, migration.definition); err != nil {
@@ -130,7 +131,7 @@ func (s *store) authenticate(username, password string) bool {
 }
 
 func (s *store) listPeers() ([]peer, error) {
-	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at FROM peers ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at,last_handshake FROM peers ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func (s *store) listPeers() ([]peer, error) {
 	var result []peer
 	for rows.Next() {
 		var p peer
-		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt, &p.LastHandshake); err != nil {
 			return nil, err
 		}
 		p.HasConfig = len(p.ConfigCipher) > 0
@@ -177,7 +178,7 @@ func (s *store) createPeer(name, kind, publicKey string) (peer, error) {
 
 func (s *store) peerByID(id int64) (peer, error) {
 	var p peer
-	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt)
+	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at,last_handshake FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt, &p.LastHandshake)
 	p.HasConfig = len(p.ConfigCipher) > 0
 	return p, err
 }
@@ -197,6 +198,11 @@ func (s *store) savePeerConfig(id int64, cipher []byte) error {
 	return err
 }
 
+func (s *store) savePeerHandshake(id int64, handshake time.Time) error {
+	_, err := s.db.Exec(`UPDATE peers SET last_handshake=? WHERE id=?`, handshake, id)
+	return err
+}
+
 func (s *store) deletePeer(id int64) error {
 	result, err := s.db.Exec(`DELETE FROM peers WHERE id=?`, id)
 	if err == nil {
@@ -208,7 +214,7 @@ func (s *store) deletePeer(id int64) error {
 }
 
 func (s *store) restorePeer(p peer) error {
-	_, err := s.db.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,config_cipher,enabled,created_at) VALUES(?,?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.ConfigCipher, p.Enabled, p.CreatedAt)
+	_, err := s.db.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,config_cipher,enabled,created_at,last_handshake) VALUES(?,?,?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.ConfigCipher, p.Enabled, p.CreatedAt, p.LastHandshake)
 	return err
 }
 

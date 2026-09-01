@@ -1,8 +1,9 @@
 {{template "header" .}}
+<div class="peer-detail" data-peer-id="{{.Peer.ID}}">
 <div class="detail-toolbar">
   <a class="back-link" href="/peers">‹ Semua peer</a>
   <div class="detail-access">
-    <span class="peer-state {{if and .Peer.Enabled .Peer.Active}}online{{end}}"><i></i>{{if not .Peer.Enabled}}Akses dijeda{{else if .Peer.Active}}Terhubung{{else}}Tidak terhubung{{end}}</span>
+    <span class="peer-state {{if and .Peer.Enabled .Peer.Active}}online{{end}}" data-peer-state><i></i><span data-peer-state-text>{{if not .Peer.Enabled}}Akses dijeda{{else if .Peer.Active}}Terhubung{{else}}Tidak terhubung{{end}}</span></span>
     <form method="post" action="/peers/{{.Peer.ID}}/toggle">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <input type="hidden" name="next" value="/peers/{{.Peer.ID}}">
@@ -17,9 +18,9 @@
   </div>
   <div class="peer-facts">
     <div><small>Alamat tunnel</small><code>{{.Peer.IP}} / 32</code></div>
-    <div><small>Handshake terakhir</small><strong>{{ago .Peer.LastHandshake}}</strong></div>
-    <div><small>Data diterima</small><strong>{{bytes .Peer.ReceivedBytes}}</strong></div>
-    <div><small>Data dikirim</small><strong>{{bytes .Peer.TransmittedBytes}}</strong></div>
+    <div><small>Handshake terakhir</small><strong data-peer-handshake data-timestamp="{{unix .Peer.LastHandshake}}">{{ago .Peer.LastHandshake}}</strong></div>
+    <div><small>Data diterima</small><strong data-peer-rx>{{bytes .Peer.ReceivedBytes}}</strong></div>
+    <div><small>Data dikirim</small><strong data-peer-tx>{{bytes .Peer.TransmittedBytes}}</strong></div>
   </div>
 </section>
 
@@ -48,4 +49,5 @@
   <div><p class="eyebrow">LEGACY PEER</p><h2>Config tidak tersedia</h2><p>Peer ini dibuat sebelum penyimpanan config terenkripsi ditambahkan. Private key tidak dapat direkonstruksi dari public key.</p><p>Hapus peer ini lalu buat ulang untuk mendapatkan QR dan tombol download.</p></div>
 </section>
 {{end}}
+</div>
 {{template "footer" .}}
