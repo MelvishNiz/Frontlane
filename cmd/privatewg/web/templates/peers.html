@@ -1,20 +1,46 @@
 {{template "header" .}}
-<div class="split form-layout">
-<section class="panel sticky-panel">
-  <p class="eyebrow">NEW TUNNEL</p><h2>Tambah peer</h2>
-  <p class="muted">Klien untuk laptop/ponsel. Server untuk VPS aplikasi lain.</p>
-  <form method="post" action="/peers" class="stack-form">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>Nama peer<input name="name" maxlength="80" required placeholder="mis. laptop-syahrul" autocomplete="off"></label>
-    <label>Jenis<select name="kind"><option value="client">Klien</option><option value="server">Server aplikasi</option></select></label>
-    <button class="primary" type="submit">Buat konfigurasi</button>
-  </form>
-</section>
-<section class="panel wide-panel">
-  <div class="panel-head"><div><p class="eyebrow">ALLOCATED ADDRESSES</p><h2>Peer terdaftar</h2></div><span class="badge">{{len .Peers}} / 253</span></div>
-  {{if .Peers}}<div class="peer-table"><div class="table-row table-head"><span>Peer</span><span>Alamat</span><span>Handshake</span><span>Traffic</span><span></span></div>
-  {{range .Peers}}<div class="table-row"><span><b>{{.Name}}</b><small>{{.Kind}}</small></span><code>{{.IP}}</code><span>{{ago .LastHandshake}}</span><span><small>↓ {{bytes .ReceivedBytes}}</small><small>↑ {{bytes .TransmittedBytes}}</small></span><form method="post" action="/peers/{{.ID}}/delete" data-confirm="Hapus peer ini?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="danger" type="submit">Hapus</button></form></div>{{end}}</div>
-  {{else}}<div class="empty">Belum ada peer.</div>{{end}}
-</section>
+<div class="workspace-grid">
+  <section class="panel create-card">
+    <div class="section-icon">+</div>
+    <p class="eyebrow">NEW SECURE TUNNEL</p>
+    <h2>Tambah peer</h2>
+    <p class="muted">Buat akses untuk perangkat Anda atau sambungkan VPS aplikasi.</p>
+    <form method="post" action="/peers" class="stack-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Nama peer<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="laptop-syahrul" autocomplete="off"><small>Huruf, angka, titik, garis bawah, atau strip.</small></label>
+      <label>Jenis perangkat<select name="kind"><option value="client">Klien — laptop / ponsel</option><option value="server">Server — VPS aplikasi</option></select></label>
+      <button class="primary full" type="submit"><span>Buat peer</span><span aria-hidden="true">↗</span></button>
+    </form>
+  </section>
+
+  <section class="panel peer-directory">
+    <div class="panel-head">
+      <div><p class="eyebrow">NETWORK DIRECTORY</p><h2>Peer terdaftar</h2><p class="muted">Klik peer untuk melihat QR dan mengunduh konfigurasi.</p></div>
+      <span class="count-badge"><b>{{len .Peers}}</b><small>dari 253</small></span>
+    </div>
+    {{if .Peers}}
+    <div class="peer-list">
+      {{range .Peers}}
+      <article class="peer-row">
+        <a class="peer-main" href="/peers/{{.ID}}">
+          <span class="device-icon {{.Kind}}"><i></i></span>
+          <span class="peer-identity"><b>{{.Name}}</b><small>{{if eq .Kind "client"}}Perangkat klien{{else}}Server aplikasi{{end}}</small></span>
+          <code>{{.IP}}</code>
+          <span class="peer-state {{if .Active}}online{{end}}"><i></i>{{ago .LastHandshake}}</span>
+          <span class="traffic"><small>↓ {{bytes .ReceivedBytes}}</small><small>↑ {{bytes .TransmittedBytes}}</small></span>
+          <span class="config-state {{if .HasConfig}}ready{{end}}">{{if .HasConfig}}QR + config{{else}}Config lama{{end}}</span>
+          <span class="chevron">›</span>
+        </a>
+        <form method="post" action="/peers/{{.ID}}/delete" data-confirm="Hapus peer {{.Name}}? Akses perangkat akan langsung terputus.">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button class="icon-danger" type="submit" aria-label="Hapus peer {{.Name}}">×</button>
+        </form>
+      </article>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="empty-state"><span>⌁</span><h3>Jaringan masih kosong</h3><p>Buat peer pertama untuk mulai menghubungkan perangkat.</p></div>
+    {{end}}
+  </section>
 </div>
 {{template "footer" .}}

@@ -22,6 +22,9 @@ type peer struct {
 	Kind             string
 	IP               string
 	PublicKey        string
+	ConfigCipher     []byte
+	HasConfig        bool
+	Active           bool
 	CreatedAt        time.Time
 	LastHandshake    time.Time
 	ReceivedBytes    int64
@@ -56,7 +59,36 @@ func openStore(path string) (*store, error) {
 			return nil, err
 		}
 	}
+	if err := ensureColumn(db, "peers", "config_cipher", "BLOB"); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &store{db: db}, nil
+}
+
+func ensureColumn(db *sql.DB, table, column, definition string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, kind string
+		var notNull, pk int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &kind, &notNull, &defaultValue, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
+	return err
 }
 
 func (s *store) Close() error { return s.db.Close() }
@@ -90,7 +122,7 @@ func (s *store) authenticate(username, password string) bool {
 }
 
 func (s *store) listPeers() ([]peer, error) {
-	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,created_at FROM peers ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),created_at FROM peers ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +130,10 @@ func (s *store) listPeers() ([]peer, error) {
 	var result []peer
 	for rows.Next() {
 		var p peer
-		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.CreatedAt); err != nil {
 			return nil, err
 		}
+		p.HasConfig = len(p.ConfigCipher) > 0
 		result = append(result, p)
 	}
 	return result, rows.Err()
@@ -136,8 +169,14 @@ func (s *store) createPeer(name, kind, publicKey string) (peer, error) {
 
 func (s *store) peerByID(id int64) (peer, error) {
 	var p peer
-	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,created_at FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.CreatedAt)
+	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),created_at FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.CreatedAt)
+	p.HasConfig = len(p.ConfigCipher) > 0
 	return p, err
+}
+
+func (s *store) savePeerConfig(id int64, cipher []byte) error {
+	_, err := s.db.Exec(`UPDATE peers SET config_cipher=? WHERE id=?`, cipher, id)
+	return err
 }
 
 func (s *store) deletePeer(id int64) error {
@@ -151,7 +190,7 @@ func (s *store) deletePeer(id int64) error {
 }
 
 func (s *store) restorePeer(p peer) error {
-	_, err := s.db.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,created_at) VALUES(?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.CreatedAt)
+	_, err := s.db.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,config_cipher,created_at) VALUES(?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.ConfigCipher, p.CreatedAt)
 	return err
 }
 

@@ -31,6 +31,8 @@ sudo rm data/privatewg/bootstrap.conf
 
 Buka `https://panel.example.com` langsung tanpa WireGuard. Import profil bootstrap hanya untuk mengakses aplikasi privat, lalu hapus peer bootstrap setelah peer pengganti dibuat.
 
+Peer baru dapat dibuka kembali dari menu Peer. Halaman detail menyediakan QR, salin config, dan download `.conf`; config disimpan terenkripsi. Peer yang dibuat oleh versi lama tidak memiliki private key tersimpan dan harus dibuat ulang.
+
 Aktifkan firewall setelah memastikan SSH berjalan pada TCP `22`. Script memakai default-deny dan mengizinkan SSH `22`; edit script dahulu bila port SSH berbeda:
 
 ```bash
@@ -95,6 +97,8 @@ Backup berisi server private key. Simpan terenkripsi dan batasi akses.
 ## Batas V1
 
 - Satu admin; password awal tidak otomatis berubah saat `.env` berubah.
+- Config peer baru disimpan terenkripsi AES-256-GCM agar QR dan download tetap tersedia. Peer lama harus dibuat ulang.
+- Key enkripsi diturunkan dari server private key; mengganti `data/wireguard/server.key` membuat config tersimpan tidak dapat dibuka.
 - Session berada di memori; restart meminta login ulang.
 - Subnet tetap `10.77.0.0/24`; split tunnel tetap.
 - Sertifikat HTTP-01 memerlukan record `A` publik per domain dan TCP `80` publik.

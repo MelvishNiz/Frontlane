@@ -54,23 +54,21 @@ type session struct {
 }
 
 type viewData struct {
-	Title       string
-	User        string
-	CSRF        string
-	Error       string
-	Notice      string
-	Peers       []peer
-	Services    []service
-	WG          wgStatus
-	Config      string
-	QRCode      string
-	PanelDomain string
-	BaseDomain  string
-	Endpoint    string
-	PeerIP      string
-	PeerName    string
-	PeerPublic  string
-	PeerCreated bool
+	Title        string
+	User         string
+	CSRF         string
+	Error        string
+	Notice       string
+	Peers        []peer
+	Services     []service
+	WG           wgStatus
+	Config       string
+	PanelDomain  string
+	BaseDomain   string
+	Endpoint     string
+	Peer         peer
+	PeerCreated  bool
+	ConfigStored bool
 }
 
 func main() {
@@ -88,8 +86,9 @@ func main() {
 	}
 
 	tpl, err := template.New("").Funcs(template.FuncMap{
-		"bytes": humanBytes,
-		"ago":   timeAgo,
+		"bytes":   humanBytes,
+		"ago":     timeAgo,
+		"initial": initial,
 	}).ParseFS(assets, "web/templates/*.html")
 	if err != nil {
 		log.Fatal(err)
@@ -118,6 +117,9 @@ func main() {
 	mux.HandleFunc("GET /", s.auth(s.dashboard))
 	mux.HandleFunc("GET /peers", s.auth(s.peersPage))
 	mux.HandleFunc("POST /peers", s.auth(s.createPeer))
+	mux.HandleFunc("GET /peers/{id}", s.auth(s.peerDetail))
+	mux.HandleFunc("GET /peers/{id}/config", s.auth(s.downloadPeerConfig))
+	mux.HandleFunc("GET /peers/{id}/qr.png", s.auth(s.peerQRCode))
 	mux.HandleFunc("POST /peers/{id}/delete", s.auth(s.deletePeer))
 	mux.HandleFunc("GET /services", s.auth(s.servicesPage))
 	mux.HandleFunc("POST /services", s.auth(s.createService))
@@ -236,14 +238,97 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clientConfig := s.clientConfig(p, privateKey)
-	qr, _ := qrDataURL(clientConfig)
-	peers, _ := s.store.listPeers()
-	status, _ := s.wireGuardStatus(peers)
-	data := s.data(r, "Peer dibuat", peers, nil, status)
-	data.PeerCreated, data.PeerName, data.PeerIP, data.PeerPublic = true, p.Name, p.IP, p.PublicKey
-	data.Config, data.QRCode = clientConfig, qr
+	if err := s.storeEncryptedConfig(p.ID, clientConfig); err != nil {
+		_ = s.store.deletePeer(p.ID)
+		_ = s.applyWireGuard()
+		s.peerError(w, r, "Config peer gagal disimpan: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	s.store.audit("peer.create", p.Name+" "+p.IP, clientIP(r))
+	http.Redirect(w, r, fmt.Sprintf("/peers/%d?created=1", p.ID), http.StatusSeeOther)
+}
+
+func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	peers, err := s.store.listPeers()
+	if err != nil {
+		http.Error(w, "Peer gagal dimuat", http.StatusInternalServerError)
+		return
+	}
+	status, _ := s.wireGuardStatus(peers)
+	var selected *peer
+	for i := range peers {
+		if peers[i].ID == id {
+			selected = &peers[i]
+			break
+		}
+	}
+	if selected == nil {
+		http.NotFound(w, r)
+		return
+	}
+	data := s.data(r, "Detail peer", peers, nil, status)
+	data.Peer = *selected
+	data.PeerCreated = r.URL.Query().Get("created") == "1"
+	data.ConfigStored = selected.HasConfig
+	if selected.HasConfig {
+		data.Config, err = s.decryptedPeerConfig(*selected)
+		if err != nil {
+			data.Error = err.Error()
+			data.ConfigStored = false
+		}
+	}
 	s.render(w, "peer-created.html", data)
+}
+
+func (s *server) downloadPeerConfig(w http.ResponseWriter, r *http.Request) {
+	p, config, ok := s.peerConfigResponse(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-wireguard-profile")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.conf"`, p.Name))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	s.store.audit("peer.config.download", p.Name+" "+p.IP, clientIP(r))
+	_, _ = w.Write([]byte(config))
+}
+
+func (s *server) peerQRCode(w http.ResponseWriter, r *http.Request) {
+	_, config, ok := s.peerConfigResponse(w, r)
+	if !ok {
+		return
+	}
+	png, err := qrPNG(config)
+	if err != nil {
+		http.Error(w, "QR code gagal dibuat", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Length", strconv.Itoa(len(png)))
+	_, _ = w.Write(png)
+}
+
+func (s *server) peerConfigResponse(w http.ResponseWriter, r *http.Request) (peer, string, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return peer{}, "", false
+	}
+	p, err := s.store.peerByID(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return peer{}, "", false
+	}
+	config, err := s.decryptedPeerConfig(p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return peer{}, "", false
+	}
+	return p, config, true
 }
 
 func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
@@ -462,6 +547,13 @@ func randomToken(size int) string {
 func hashPassword(password string, salt []byte) string {
 	hash := argon2.IDKey([]byte(password), salt, 3, 64*1024, 2, 32)
 	return base64.RawStdEncoding.EncodeToString(hash)
+}
+
+func initial(value string) string {
+	for _, r := range value {
+		return strings.ToUpper(string(r))
+	}
+	return "?"
 }
 
 func humanBytes(n int64) string {

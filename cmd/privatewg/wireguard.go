@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
@@ -61,8 +64,14 @@ func (s *server) ensureBootstrapPeer() error {
 		_ = s.store.deletePeer(p.ID)
 		return err
 	}
+	config := s.clientConfig(p, privateKey)
+	if err := s.storeEncryptedConfig(p.ID, config); err != nil {
+		_ = s.store.deletePeer(p.ID)
+		_ = s.applyWireGuard()
+		return err
+	}
 	path := filepath.Join(s.cfg.DataDir, "bootstrap.conf")
-	if err := atomicWrite(path, []byte(s.clientConfig(p, privateKey)), 0600); err != nil {
+	if err := atomicWrite(path, []byte(config), 0600); err != nil {
 		return err
 	}
 	log.Printf("bootstrap peer created: copy %s securely, then delete the file", path)
@@ -171,10 +180,12 @@ func (s *server) wireGuardStatus(peers []peer) (wgStatus, error) {
 		tx, _ := strconv.ParseInt(fields[6], 10, 64)
 		status.Received += rx
 		status.Transmitted += tx
-		if handshake > 0 && time.Since(time.Unix(handshake, 0)) < 3*time.Minute {
+		active := handshake > 0 && time.Since(time.Unix(handshake, 0)) < 3*time.Minute
+		if active {
 			status.ActiveCount++
 		}
 		if p := byKey[fields[0]]; p != nil {
+			p.Active = active
 			if handshake > 0 {
 				p.LastHandshake = time.Unix(handshake, 0)
 			}
@@ -184,12 +195,71 @@ func (s *server) wireGuardStatus(peers []peer) (wgStatus, error) {
 	return status, nil
 }
 
-func qrDataURL(config string) (string, error) {
-	output, err := exec.Command("qrencode", "-t", "PNG", "-o", "-", "-s", "5", config).Output()
+func (s *server) storeEncryptedConfig(peerID int64, config string) error {
+	key, err := s.configEncryptionKey()
 	if err != nil {
-		return "", nil // QR optional; config remains downloadable by copy.
+		return err
 	}
-	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(output), nil
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return err
+	}
+	sealed := gcm.Seal(nonce, nonce, []byte(config), []byte("privatewg-peer-config"))
+	return s.store.savePeerConfig(peerID, sealed)
+}
+
+func (s *server) decryptedPeerConfig(p peer) (string, error) {
+	if len(p.ConfigCipher) == 0 {
+		return "", errors.New("konfigurasi peer lama tidak tersimpan; buat ulang peer untuk mendapatkan config dan QR")
+	}
+	key, err := s.configEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	if len(p.ConfigCipher) < gcm.NonceSize() {
+		return "", errors.New("data konfigurasi peer rusak")
+	}
+	nonce, ciphertext := p.ConfigCipher[:gcm.NonceSize()], p.ConfigCipher[gcm.NonceSize():]
+	plain, err := gcm.Open(nil, nonce, ciphertext, []byte("privatewg-peer-config"))
+	if err != nil {
+		return "", errors.New("konfigurasi peer tidak dapat didekripsi")
+	}
+	return string(plain), nil
+}
+
+func (s *server) configEncryptionKey() ([]byte, error) {
+	serverKey, err := os.ReadFile(filepath.Join(s.cfg.WGDir, "server.key"))
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(append([]byte("privatewg/config/v1:"), bytes.TrimSpace(serverKey)...))
+	return sum[:], nil
+}
+
+func qrPNG(config string) ([]byte, error) {
+	cmd := exec.Command("qrencode", "-t", "PNG", "-o", "-", "-s", "7", "-m", "2", "-l", "M")
+	cmd.Stdin = strings.NewReader(config)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("qrencode: %s", strings.TrimSpace(string(output)))
+	}
+	return output, nil
 }
 
 func run(name string, args ...string) error {
