@@ -1,0 +1,19 @@
+{{template "header" .}}
+<div class="split form-layout">
+<section class="panel sticky-panel">
+  <p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Tambah domain</h2>
+  <p class="muted">Domain mengarah ke Laravel lokal atau IP WireGuard VPS lain.</p>
+  <form method="post" action="/services" class="stack-form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Domain<input name="host" required placeholder="app.{{.BaseDomain}}" autocomplete="off"></label>
+    <label>Target<input name="target" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Gunakan <code>10.77.0.x:port</code> untuk VPS lain.</small></label>
+    <button class="primary" type="submit">Tambahkan rute</button>
+  </form>
+</section>
+<section class="panel wide-panel">
+  <div class="panel-head"><div><p class="eyebrow">CADDY + COREDNS</p><h2>Domain privat</h2></div><span class="badge">{{len .Services}} rute</span></div>
+  {{if .Services}}<div class="route-list">{{range .Services}}<div><span class="route-protocol">HTTPS</span><strong>{{.Host}}</strong><span class="route-line"></span><code>{{.Target}}</code><form method="post" action="/services/{{.ID}}/delete" data-confirm="Hapus domain ini?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="danger" type="submit">Hapus</button></form></div>{{end}}</div>
+  {{else}}<div class="empty">Belum ada domain privat.</div>{{end}}
+</section>
+</div>
+{{template "footer" .}}

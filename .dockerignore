@@ -1,0 +1,8 @@
+.git
+.env
+data/privatewg
+data/wireguard
+data/caddy
+data/coredns
+privatewg
+README.md

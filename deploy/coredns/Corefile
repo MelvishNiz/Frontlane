@@ -1,0 +1,10 @@
+.:53 {
+    bind 10.77.0.1
+    hosts /data/coredns/domains.hosts {
+        reload 2s
+        fallthrough
+    }
+    forward . 1.1.1.1 9.9.9.9
+    cache 30
+    errors
+}

@@ -1,0 +1,12 @@
+.env
+*.db
+*.db-shm
+*.db-wal
+data/privatewg/*
+data/wireguard/*
+data/caddy/*
+data/coredns/*
+!data/privatewg/.gitkeep
+!data/wireguard/.gitkeep
+!data/caddy/Caddyfile
+!data/coredns/domains.hosts

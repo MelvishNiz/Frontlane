@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="id">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Masuk · PrivateWG</title><link rel="stylesheet" href="/static/app.css"></head>
+<body class="login-page">
+<main class="login-card">
+  <div class="login-signal"><span></span><span></span><span></span></div>
+  <p class="eyebrow">PRIVATE NETWORK CONTROL</p><h1>PrivateWG</h1><p>Kelola jaringan melalui koneksi HTTPS aman.</p>
+  {{if .Error}}<div class="alert error" role="alert">{{.Error}}</div>{{end}}
+  <form method="post" action="/login" class="stack-form">
+    <label>Username<input name="username" required autocomplete="username" autofocus></label>
+    <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="primary" type="submit">Masuk ke jaringan</button>
+  </form>
+</main>
+</body>
+</html>

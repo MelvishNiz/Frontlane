@@ -1,0 +1,20 @@
+{{template "header" .}}
+<div class="split form-layout">
+<section class="panel sticky-panel">
+  <p class="eyebrow">NEW TUNNEL</p><h2>Tambah peer</h2>
+  <p class="muted">Klien untuk laptop/ponsel. Server untuk VPS aplikasi lain.</p>
+  <form method="post" action="/peers" class="stack-form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Nama peer<input name="name" maxlength="80" required placeholder="mis. laptop-syahrul" autocomplete="off"></label>
+    <label>Jenis<select name="kind"><option value="client">Klien</option><option value="server">Server aplikasi</option></select></label>
+    <button class="primary" type="submit">Buat konfigurasi</button>
+  </form>
+</section>
+<section class="panel wide-panel">
+  <div class="panel-head"><div><p class="eyebrow">ALLOCATED ADDRESSES</p><h2>Peer terdaftar</h2></div><span class="badge">{{len .Peers}} / 253</span></div>
+  {{if .Peers}}<div class="peer-table"><div class="table-row table-head"><span>Peer</span><span>Alamat</span><span>Handshake</span><span>Traffic</span><span></span></div>
+  {{range .Peers}}<div class="table-row"><span><b>{{.Name}}</b><small>{{.Kind}}</small></span><code>{{.IP}}</code><span>{{ago .LastHandshake}}</span><span><small>↓ {{bytes .ReceivedBytes}}</small><small>↑ {{bytes .TransmittedBytes}}</small></span><form method="post" action="/peers/{{.ID}}/delete" data-confirm="Hapus peer ini?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="danger" type="submit">Hapus</button></form></div>{{end}}</div>
+  {{else}}<div class="empty">Belum ada peer.</div>{{end}}
+</section>
+</div>
+{{template "footer" .}}

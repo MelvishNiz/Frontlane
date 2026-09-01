@@ -1,0 +1,69 @@
+services:
+  privatewg:
+    build: .
+    container_name: privatewg
+    restart: unless-stopped
+    network_mode: host
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PWG_LISTEN: "10.77.0.1:8080"
+      PWG_PUBLIC_ENDPOINT: "${PWG_PUBLIC_ENDPOINT}"
+      PWG_BASE_DOMAIN: "${PWG_BASE_DOMAIN}"
+      PWG_ACME_EMAIL: "${PWG_ACME_EMAIL}"
+      PWG_ADMIN_USER: "${PWG_ADMIN_USER:-admin}"
+      PWG_ADMIN_PASSWORD: "${PWG_ADMIN_PASSWORD}"
+      PWG_COOKIE_SECURE: "true"
+    volumes:
+      - ./data/privatewg:/data/privatewg
+      - ./data/wireguard:/etc/wireguard
+      - ./data/caddy:/data/caddy
+      - ./data/coredns:/data/coredns
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: privatewg-caddy
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - privatewg
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --watch
+    volumes:
+      - ./data/caddy:/etc/caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  coredns:
+    image: coredns/coredns:1.12.0
+    container_name: privatewg-coredns
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - privatewg
+    command: -conf /etc/coredns/Corefile
+    volumes:
+      - ./deploy/coredns/Corefile:/etc/coredns/Corefile:ro
+      - ./data/coredns:/data/coredns:ro
+
+  laravel-example:
+    image: serversideup/php:8.4-cli
+    container_name: privatewg-laravel-example
+    restart: unless-stopped
+    profiles: ["example"]
+    working_dir: /var/www/html
+    command: sh -c 'test -f artisan || composer create-project laravel/laravel . --no-interaction; php artisan serve --host=0.0.0.0 --port=8080'
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - laravel_example:/var/www/html
+
+volumes:
+  caddy_data:
+  caddy_config:
+  laravel_example:

@@ -1,0 +1,13 @@
+{{template "header" .}}
+<section class="reveal panel">
+  <p class="eyebrow">ONE-TIME CREDENTIAL</p><h2>{{.PeerName}} siap</h2>
+  <div class="secret-warning">Private key hanya ditampilkan sekarang. Simpan konfigurasi sebelum meninggalkan halaman.</div>
+  <div class="config-grid">
+    <div><dl><dt>Alamat VPN</dt><dd><code>{{.PeerIP}}</code></dd><dt>Public key</dt><dd><code class="break">{{.PeerPublic}}</code></dd></dl>
+      <label class="config-label">Konfigurasi WireGuard<textarea readonly rows="14" spellcheck="false">{{.Config}}</textarea></label>
+    </div>
+    <div class="qr-box">{{if .QRCode}}<img src="{{.QRCode}}" alt="QR konfigurasi WireGuard untuk {{.PeerName}}">{{else}}<div class="qr-missing">Pasang <code>qrencode</code> untuk QR.</div>{{end}}<small>Scan memakai aplikasi WireGuard</small></div>
+  </div>
+  <a class="primary inline" href="/peers">Selesai, kembali ke peer</a>
+</section>
+{{template "footer" .}}
