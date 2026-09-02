@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -45,6 +46,13 @@ func TestBuildRoutingConfigs(t *testing.T) {
 	}
 	if got := cfg.HTTP.Routers["panel"].Rule; got != "Host(`panel.example.com`)" {
 		t.Fatalf("panel rule = %q", got)
+	}
+	dashboard := cfg.HTTP.Routers["traefik-dashboard"]
+	if dashboard.Service != "api@internal" || dashboard.Rule != "Host(`panel.example.com`) && PathPrefix(`/traefik`)" || strings.Join(dashboard.Middlewares, ",") != "panel-auth" || dashboard.Priority != 100 {
+		t.Fatalf("dashboard router = %#v", dashboard)
+	}
+	if got := cfg.HTTP.Middlewares["panel-auth"].ForwardAuth; got == nil || got.Address != "http://10.77.0.1:8080/__privatewg/auth" || !got.PreserveLocationHeader {
+		t.Fatalf("panel auth = %#v", got)
 	}
 	active := cfg.HTTP.Routers["service-1"]
 	if active.Service != "service-1" || strings.Join(active.Middlewares, ",") != "service-errors,vpn-only,retry-upstream" {
@@ -94,6 +102,25 @@ func TestClientIPTrustsOnlyLocalProxy(t *testing.T) {
 	untrusted.Header.Set("X-Forwarded-For", "10.77.0.20")
 	if got := clientIP(untrusted); got != "203.0.113.20" {
 		t.Fatalf("untrusted proxy client IP = %q", got)
+	}
+}
+
+func TestTraefikAuth(t *testing.T) {
+	s := &server{sessions: map[string]session{}}
+
+	unauthorized := httptest.NewRecorder()
+	s.traefikAuth(unauthorized, httptest.NewRequest(http.MethodGet, "/__privatewg/auth", nil))
+	if unauthorized.Code != http.StatusSeeOther || unauthorized.Header().Get("Location") != "/login" {
+		t.Fatalf("unauthorized auth response = %d, location %q", unauthorized.Code, unauthorized.Header().Get("Location"))
+	}
+
+	s.sessions["valid"] = session{Expires: time.Now().Add(time.Hour)}
+	authorized := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/__privatewg/auth", nil)
+	req.AddCookie(&http.Cookie{Name: "pwg_session", Value: "valid"})
+	s.traefikAuth(authorized, req)
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized auth response = %d", authorized.Code)
 	}
 }
 

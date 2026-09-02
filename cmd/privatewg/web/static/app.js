@@ -95,7 +95,7 @@ function renderPeerStatus(root, peer) {
 async function refreshPeerStatuses() {
   if (!peerRows.length) return;
   try {
-    const response = await fetch("/api/peers/status");
+    const response = await fetch("/__privatewg/api/peers/status");
     if (!response.ok) return;
     const statuses = new Map((await response.json()).map((peer) => [String(peer.id), peer]));
     peerRows.forEach((root) => {

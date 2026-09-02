@@ -8,7 +8,7 @@
     </div>
     <div class="toolbar-actions">
       <span class="directory-count"><b>{{len .Peers}}</b><small>peer terdaftar</small></span>
-      <button class="primary" type="button" data-dialog-open="peer-dialog"><span aria-hidden="true">+</span> Tambah peer</button>
+      <button class="primary" type="button" data-dialog-open="peer-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Tambah peer</button>
     </div>
   </div>
 
@@ -34,14 +34,14 @@
         <a class="row-detail" href="/peers/{{.ID}}" aria-label="Buka detail {{.Name}}">Detail</a>
         <form method="post" action="/peers/{{.ID}}/delete" data-confirm="Hapus peer {{.Name}}? Akses perangkat akan langsung terputus.">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <button class="icon-danger" type="submit" aria-label="Hapus peer {{.Name}}">×</button>
+          <button class="icon-danger" type="submit" aria-label="Hapus peer {{.Name}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button>
         </form>
       </div>
     </article>
     {{end}}
   </div>
   {{else}}
-  <div class="empty-state"><span>⌁</span><h3>Jaringan masih kosong</h3><p>Tambah peer pertama untuk menghubungkan perangkat.</p><button class="secondary" type="button" data-dialog-open="peer-dialog">Tambah peer</button></div>
+  <div class="empty-state"><span><svg aria-hidden="true"><use href="#icon-devices"></use></svg></span><h3>Jaringan masih kosong</h3><p>Tambah peer pertama untuk menghubungkan perangkat.</p><button class="secondary" type="button" data-dialog-open="peer-dialog">Tambah peer</button></div>
   {{end}}
 </section>
 
@@ -49,7 +49,7 @@
   <div class="dialog-card">
     <div class="dialog-head">
       <div><p class="eyebrow">NEW SECURE TUNNEL</p><h2>Tambah peer</h2></div>
-      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog">×</button>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
     <p class="muted">Buat profil untuk laptop, ponsel, atau VPS aplikasi.</p>
     {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}

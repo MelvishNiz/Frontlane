@@ -33,6 +33,7 @@ type traefikRouter struct {
 	Rule        string     `yaml:"rule"`
 	Service     string     `yaml:"service"`
 	Middlewares []string   `yaml:"middlewares,omitempty"`
+	Priority    int        `yaml:"priority,omitempty"`
 	TLS         traefikTLS `yaml:"tls"`
 }
 
@@ -45,6 +46,7 @@ type traefikMiddleware struct {
 	Retry       *traefikRetry       `yaml:"retry,omitempty"`
 	Errors      *traefikErrors      `yaml:"errors,omitempty"`
 	ReplacePath *traefikReplacePath `yaml:"replacePath,omitempty"`
+	ForwardAuth *traefikForwardAuth `yaml:"forwardAuth,omitempty"`
 }
 
 type traefikIPAllowList struct {
@@ -69,6 +71,12 @@ type traefikErrors struct {
 
 type traefikReplacePath struct {
 	Path string `yaml:"path"`
+}
+
+type traefikForwardAuth struct {
+	Address                string `yaml:"address"`
+	TrustForwardHeader     bool   `yaml:"trustForwardHeader"`
+	PreserveLocationHeader bool   `yaml:"preserveLocationHeader"`
 }
 
 type traefikService struct {
@@ -151,8 +159,23 @@ func buildRoutingConfigs(cfg config, services []service) ([]byte, []byte, error)
 				Service:     "privatewg-panel",
 				TLS:         traefikTLS{CertResolver: "letsencrypt"},
 			},
+			"traefik-dashboard": {
+				EntryPoints: []string{"websecure"},
+				Rule:        fmt.Sprintf("Host(`panel.%s`) && PathPrefix(`/traefik`)", cfg.BaseDomain),
+				Service:     "api@internal",
+				Middlewares: []string{"panel-auth"},
+				Priority:    100,
+				TLS:         traefikTLS{CertResolver: "letsencrypt"},
+			},
 		},
 		Middlewares: map[string]traefikMiddleware{
+			"panel-auth": {
+				ForwardAuth: &traefikForwardAuth{
+					Address:                "http://10.77.0.1:8080/__privatewg/auth",
+					TrustForwardHeader:     false,
+					PreserveLocationHeader: true,
+				},
+			},
 			"vpn-only": {
 				IPAllowList: &traefikIPAllowList{SourceRange: []string{"10.77.0.0/24"}, RejectStatusCode: 418},
 			},

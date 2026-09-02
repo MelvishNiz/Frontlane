@@ -47,7 +47,8 @@ services:
       - --certificatesresolvers.letsencrypt.acme.email=${PWG_ACME_EMAIL:?PWG_ACME_EMAIL is required}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
-      - --api.dashboard=false
+      - --api.dashboard=true
+      - --api.basepath=/traefik
       - --accesslog=true
       - --global.checknewversion=false
       - --global.sendanonymoususage=false

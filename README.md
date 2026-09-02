@@ -30,7 +30,7 @@ sudo chown "$USER":"$USER" ~/privatewg-bootstrap.conf
 sudo rm data/privatewg/bootstrap.conf
 ```
 
-Buka `https://panel.example.com` langsung tanpa WireGuard. Import profil bootstrap hanya untuk mengakses aplikasi privat, lalu hapus peer bootstrap setelah peer pengganti dibuat.
+Buka `https://panel.example.com` langsung tanpa WireGuard. Dashboard Traefik tersedia di `https://panel.example.com/traefik/dashboard/` dan memakai sesi login panel yang sama. Import profil bootstrap hanya untuk mengakses aplikasi privat, lalu hapus peer bootstrap setelah peer pengganti dibuat.
 
 Migrasi dari rilis Caddy: verifikasi seluruh DNS A/AAAA dan TCP `80` lebih dahulu, jalankan cutover sekali untuk menghindari rate limit Let's Encrypt, hentikan stack lama dengan `docker compose down`, lalu jalankan `docker compose up -d --build --remove-orphans`. Sertifikat Caddy tidak kompatibel dengan penyimpanan Traefik; Traefik menerbitkan ulang sertifikat. Verifikasi `data/traefik/letsencrypt/acme.json` terisi dan seluruh HTTPS berhasil. Simpan `data/caddy` sementara untuk rollback.
 

@@ -121,6 +121,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	mux.HandleFunc("/__privatewg/errors/{status}", routeErrorPage)
+	mux.HandleFunc("GET /__privatewg/auth", s.traefikAuth)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.auth(s.logout))
@@ -128,7 +129,7 @@ func main() {
 	mux.HandleFunc("GET /peers", s.auth(s.peersPage))
 	mux.HandleFunc("POST /peers", s.auth(s.createPeer))
 	mux.HandleFunc("GET /peers/{id}", s.auth(s.peerDetail))
-	mux.HandleFunc("GET /api/peers/status", s.auth(s.peerStatuses))
+	mux.HandleFunc("GET /__privatewg/api/peers/status", s.auth(s.peerStatuses))
 	mux.HandleFunc("GET /peers/{id}/config", s.auth(s.downloadPeerConfig))
 	mux.HandleFunc("GET /peers/{id}/qr.png", s.auth(s.peerQRCode))
 	mux.HandleFunc("POST /peers/{id}/toggle", s.auth(s.togglePeer))
@@ -560,6 +561,14 @@ func (s *server) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func (s *server) traefikAuth(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.currentSession(r); !ok {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *server) currentSession(r *http.Request) (session, bool) {

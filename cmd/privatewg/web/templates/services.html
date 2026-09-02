@@ -8,7 +8,7 @@
     </div>
     <div class="toolbar-actions">
       <span class="directory-count"><b>{{len .Services}}</b><small>rute terdaftar</small></span>
-      <button class="primary" type="button" data-dialog-open="service-dialog"><span aria-hidden="true">+</span> Tambah domain</button>
+      <button class="primary" type="button" data-dialog-open="service-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Tambah domain</button>
     </div>
   </div>
 
@@ -33,17 +33,17 @@
         <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} domain {{.Host}}"><span></span></button>
       </form>
       <div class="row-actions">
-        <a class="row-detail" href="https://{{.Host}}" target="_blank" rel="noopener">Buka</a>
+        <a class="row-detail" href="https://{{.Host}}" target="_blank" rel="noopener">Buka <svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
         <form method="post" action="/services/{{.ID}}/delete" data-confirm="Hapus domain {{.Host}}?">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <button class="icon-danger" type="submit" aria-label="Hapus domain {{.Host}}">×</button>
+          <button class="icon-danger" type="submit" aria-label="Hapus domain {{.Host}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button>
         </form>
       </div>
     </article>
     {{end}}
   </div>
   {{else}}
-  <div class="empty-state"><span>◇</span><h3>Belum ada domain</h3><p>Hubungkan domain pertama ke aplikasi lokal atau VPS peer.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Tambah domain</button></div>
+  <div class="empty-state"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><h3>Belum ada domain</h3><p>Hubungkan domain pertama ke aplikasi lokal atau VPS peer.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Tambah domain</button></div>
   {{end}}
 </section>
 
@@ -51,7 +51,7 @@
   <div class="dialog-card">
     <div class="dialog-head">
       <div><p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Tambah domain</h2></div>
-      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog">×</button>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
     <p class="muted">Gunakan subdomain bawaan atau domain external milik Anda.</p>
     {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}

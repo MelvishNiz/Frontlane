@@ -10,6 +10,18 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+<svg class="icon-sprite" aria-hidden="true">
+  <symbol id="icon-dashboard" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z"/></symbol>
+  <symbol id="icon-devices" viewBox="0 0 24 24"><path d="M4 6h18V4H4a2 2 0 0 0-2 2v12H0v2h14v-2H4V6Zm19 2h-6a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1Zm-1 10h-4v-8h4v8Z"/></symbol>
+  <symbol id="icon-language" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.92 6h-2.95a15.7 15.7 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.92 8ZM12 4c.83 1.2 1.48 2.53 1.91 4H10.1A13.7 13.7 0 0 1 12 4ZM4.26 14a7.8 7.8 0 0 1 0-4h3.39a16.5 16.5 0 0 0 0 4H4.26Zm.82 2h2.95c.32 1.25.79 2.45 1.38 3.56A8.03 8.03 0 0 1 5.08 16ZM8.03 8H5.08a8.03 8.03 0 0 1 4.33-3.56A15.7 15.7 0 0 0 8.03 8ZM12 20a13.7 13.7 0 0 1-1.91-4h3.82A13.7 13.7 0 0 1 12 20Zm2.35-6h-4.7a14.5 14.5 0 0 1 0-4h4.7a14.5 14.5 0 0 1 0 4Zm.24 5.56c.59-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56ZM16.35 14a16.5 16.5 0 0 0 0-4h3.39a7.8 7.8 0 0 1 0 4h-3.39Z"/></symbol>
+  <symbol id="icon-open" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7ZM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7Z"/></symbol>
+  <symbol id="icon-add" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z"/></symbol>
+  <symbol id="icon-delete" viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12Zm3.46-7.12 1.41-1.41L12 11.59l1.12-1.12 1.41 1.41L13.41 13l1.12 1.12-1.41 1.41L12 14.41l-1.12 1.12-1.41-1.41L10.59 13l-1.13-1.12ZM15.5 4l-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></symbol>
+  <symbol id="icon-close" viewBox="0 0 24 24"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13l-6.3 6.71-1.41-1.42L9.17 12l-6.29-6.29 1.41-1.42 6.3 6.3 6.3-6.3 1.41 1.42Z"/></symbol>
+  <symbol id="icon-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2Z"/></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7ZM5 18v2h14v-2H5Z"/></symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z"/></symbol>
+</svg>
 <div class="app-shell">
   <aside class="rail">
     <a class="brand" href="/" aria-label="PrivateWG home">
@@ -17,9 +29,9 @@
       <span><b>PrivateWG</b><small>Network control</small></span>
     </a>
     <nav aria-label="Navigasi utama">
-      <a href="/"><span class="nav-icon">⌁</span><span>Ringkasan</span></a>
-      <a href="/peers"><span class="nav-icon">◫</span><span>Peer</span></a>
-      <a href="/services"><span class="nav-icon">◇</span><span>Domain</span></a>
+      <a href="/"><span class="nav-icon"><svg><use href="#icon-dashboard"></use></svg></span><span>Ringkasan</span></a>
+      <a href="/peers"><span class="nav-icon"><svg><use href="#icon-devices"></use></svg></span><span>Peer</span></a>
+      <a href="/services"><span class="nav-icon"><svg><use href="#icon-language"></use></svg></span><span>Domain</span></a>
     </nav>
     <div class="rail-status">
       <div class="status-orbit"><span></span></div>
@@ -33,7 +45,10 @@
   <main>
     <header class="topbar">
       <div><p class="eyebrow">PRIVATE NETWORK / CONTROL</p><h1>{{.Title}}</h1></div>
-      <div class="identity"><span class="live-pill"><i></i> Sistem aktif</span><small>{{.PanelDomain}}</small></div>
+      <div class="topbar-actions">
+        <a class="traefik-button" href="/traefik/dashboard/" target="_blank" rel="noopener"><span class="traefik-mark">T</span><span>Traefik</span><svg><use href="#icon-open"></use></svg></a>
+        <div class="identity"><span class="live-pill"><i></i> Sistem aktif</span><small>{{.PanelDomain}}</small></div>
+      </div>
     </header>
     {{if .Error}}<div class="alert error" role="alert"><b>Perlu perhatian</b><span>{{.Error}}</span></div>{{end}}
     {{if .Notice}}<div class="alert notice" role="status"><b>Berhasil</b><span>{{.Notice}}</span></div>{{end}}
