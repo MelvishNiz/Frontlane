@@ -4,9 +4,14 @@
 *.db-wal
 data/privatewg/*
 data/wireguard/*
-data/caddy/*
+data/traefik/*
 data/coredns/*
 !data/privatewg/.gitkeep
 !data/wireguard/.gitkeep
-!data/caddy/Caddyfile
+!data/traefik/dynamic/
+data/traefik/dynamic/*
+!data/traefik/dynamic/privatewg.yml
+!data/traefik/letsencrypt/
+data/traefik/letsencrypt/*
+!data/traefik/letsencrypt/.gitkeep
 !data/coredns/domains.hosts

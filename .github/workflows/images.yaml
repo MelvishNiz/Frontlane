@@ -8,6 +8,17 @@ permissions:
   packages: write
 
 jobs:
+  test:
+    name: Test server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+
   build:
     name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest

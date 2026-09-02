@@ -2,7 +2,7 @@
 .env
 data/privatewg
 data/wireguard
-data/caddy
+data/traefik
 data/coredns
 client/config
 privatewg

@@ -1,6 +1,6 @@
 # PrivateWG
 
-Panel WireGuard ringan untuk aplikasi web privat. Go + SQLite mengelola peer dan domain; Caddy menyediakan Let's Encrypt; CoreDNS memberi DNS hanya untuk klien VPN.
+Panel WireGuard ringan untuk aplikasi web privat. Go + SQLite mengelola peer dan domain; Traefik menyediakan Let's Encrypt; CoreDNS memberi DNS hanya untuk klien VPN.
 
 ## Prasyarat
 
@@ -16,9 +16,10 @@ Panel WireGuard ringan untuk aplikasi web privat. Go + SQLite mengelola peer dan
 ```bash
 cp .env.example .env
 chmod 600 .env
+chmod 700 data/traefik/letsencrypt
 # Edit seluruh nilai .env; gunakan password acak minimum 20 karakter.
 docker compose build
-docker compose up -d
+docker compose up -d --remove-orphans
 ```
 
 Startup pertama membuat peer `bootstrap-admin`. Ambil profil sekali:
@@ -30,6 +31,8 @@ sudo rm data/privatewg/bootstrap.conf
 ```
 
 Buka `https://panel.example.com` langsung tanpa WireGuard. Import profil bootstrap hanya untuk mengakses aplikasi privat, lalu hapus peer bootstrap setelah peer pengganti dibuat.
+
+Migrasi dari rilis Caddy: verifikasi seluruh DNS A/AAAA dan TCP `80` lebih dahulu, jalankan cutover sekali untuk menghindari rate limit Let's Encrypt, hentikan stack lama dengan `docker compose down`, lalu jalankan `docker compose up -d --build --remove-orphans`. Sertifikat Caddy tidak kompatibel dengan penyimpanan Traefik; Traefik menerbitkan ulang sertifikat. Verifikasi `data/traefik/letsencrypt/acme.json` terisi dan seluruh HTTPS berhasil. Simpan `data/caddy` sementara untuk rollback.
 
 Peer baru dapat dibuka kembali dari menu Peer. Halaman detail menyediakan QR, salin config, download `.conf`, dan toggle akses; config disimpan terenkripsi. Peer yang dibuat oleh versi lama tidak memiliki private key tersimpan dan harus dibuat ulang.
 
@@ -94,13 +97,13 @@ sudo wg show wg0
 ping -c 3 10.77.0.1
 ```
 
-Traffic browser berhenti di Caddy hub. Caddy meneruskan request ke VPS aplikasi melalui WireGuard. File `client/config/wg0.conf` berisi private key, diabaikan oleh Git dan Docker build context.
+Traffic browser berhenti di Traefik hub. Traefik meneruskan request ke VPS aplikasi melalui WireGuard. File `client/config/wg0.conf` berisi private key, diabaikan oleh Git dan Docker build context.
 
 ## Operasi
 
 ```bash
 docker compose logs -f privatewg
-docker compose logs -f caddy
+docker compose logs -f traefik
 docker compose restart coredns
 sudo wg show wg0
 docker compose config
@@ -109,7 +112,7 @@ docker compose config
 Backup minimum:
 
 ```bash
-tar czf privatewg-backup.tgz data/privatewg data/wireguard data/caddy data/coredns
+tar czf privatewg-backup.tgz data/privatewg data/wireguard data/traefik data/coredns
 ```
 
 Backup berisi server private key. Simpan terenkripsi dan batasi akses.

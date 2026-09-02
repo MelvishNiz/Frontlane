@@ -27,17 +27,16 @@ var assets embed.FS
 var peerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
 
 type config struct {
-	Listen         string
-	PublicEndpoint string
-	BaseDomain     string
-	ACMEEmail      string
-	AdminUser      string
-	AdminPassword  string
-	CookieSecure   bool
-	DataDir        string
-	WGDir          string
-	CaddyFile      string
-	CoreDNSHosts   string
+	Listen             string
+	PublicEndpoint     string
+	BaseDomain         string
+	AdminUser          string
+	AdminPassword      string
+	CookieSecure       bool
+	DataDir            string
+	WGDir              string
+	TraefikDynamicFile string
+	CoreDNSHosts       string
 }
 
 type server struct {
@@ -74,8 +73,8 @@ type viewData struct {
 
 func main() {
 	cfg := loadConfig()
-	if cfg.PublicEndpoint == "" || cfg.BaseDomain == "" || cfg.ACMEEmail == "" {
-		log.Fatal("PWG_PUBLIC_ENDPOINT, PWG_BASE_DOMAIN, and PWG_ACME_EMAIL are required")
+	if cfg.PublicEndpoint == "" || cfg.BaseDomain == "" {
+		log.Fatal("PWG_PUBLIC_ENDPOINT and PWG_BASE_DOMAIN are required")
 	}
 	st, err := openStore(cfg.DataDir + "/privatewg.db")
 	if err != nil {
@@ -121,10 +120,11 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.HandleFunc("/__privatewg/errors/{status}", routeErrorPage)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.auth(s.logout))
-	mux.HandleFunc("GET /", s.auth(s.dashboard))
+	mux.HandleFunc("GET /{$}", s.auth(s.dashboard))
 	mux.HandleFunc("GET /peers", s.auth(s.peersPage))
 	mux.HandleFunc("POST /peers", s.auth(s.createPeer))
 	mux.HandleFunc("GET /peers/{id}", s.auth(s.peerDetail))
@@ -147,17 +147,16 @@ func main() {
 
 func loadConfig() config {
 	return config{
-		Listen:         env("PWG_LISTEN", "10.77.0.1:8080"),
-		PublicEndpoint: os.Getenv("PWG_PUBLIC_ENDPOINT"),
-		BaseDomain:     strings.TrimSuffix(os.Getenv("PWG_BASE_DOMAIN"), "."),
-		ACMEEmail:      os.Getenv("PWG_ACME_EMAIL"),
-		AdminUser:      env("PWG_ADMIN_USER", "admin"),
-		AdminPassword:  os.Getenv("PWG_ADMIN_PASSWORD"),
-		CookieSecure:   env("PWG_COOKIE_SECURE", "true") == "true",
-		DataDir:        env("PWG_DATA_DIR", "/data/privatewg"),
-		WGDir:          env("PWG_WG_DIR", "/etc/wireguard"),
-		CaddyFile:      env("PWG_CADDY_FILE", "/data/caddy/Caddyfile"),
-		CoreDNSHosts:   env("PWG_COREDNS_HOSTS", "/data/coredns/domains.hosts"),
+		Listen:             env("PWG_LISTEN", "10.77.0.1:8080"),
+		PublicEndpoint:     os.Getenv("PWG_PUBLIC_ENDPOINT"),
+		BaseDomain:         strings.TrimSuffix(os.Getenv("PWG_BASE_DOMAIN"), "."),
+		AdminUser:          env("PWG_ADMIN_USER", "admin"),
+		AdminPassword:      os.Getenv("PWG_ADMIN_PASSWORD"),
+		CookieSecure:       env("PWG_COOKIE_SECURE", "true") == "true",
+		DataDir:            env("PWG_DATA_DIR", "/data/privatewg"),
+		WGDir:              env("PWG_WG_DIR", "/etc/wireguard"),
+		TraefikDynamicFile: env("PWG_TRAEFIK_DYNAMIC_FILE", "/data/traefik/dynamic/privatewg.yml"),
+		CoreDNSHosts:       env("PWG_COREDNS_HOSTS", "/data/coredns/domains.hosts"),
 	}
 }
 
@@ -634,6 +633,11 @@ func clientIP(r *http.Request) string {
 	}
 	proxyIP := net.ParseIP(host)
 	if proxyIP != nil && (proxyIP.IsLoopback() || proxyIP.Equal(net.ParseIP("10.77.0.1"))) {
+		if forwarded := strings.Split(r.Header.Get("X-Forwarded-For"), ","); len(forwarded) > 0 {
+			if client := net.ParseIP(strings.TrimSpace(forwarded[0])); client != nil {
+				return client.String()
+			}
+		}
 		if realIP := net.ParseIP(r.Header.Get("X-Real-IP")); realIP != nil {
 			return realIP.String()
 		}
