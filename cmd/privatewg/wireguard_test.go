@@ -80,6 +80,22 @@ func TestEnabledStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTimeAgoEnglishUnits(t *testing.T) {
+	for _, test := range []struct {
+		age  time.Duration
+		want string
+	}{
+		{90 * time.Second, "1 minute ago"},
+		{2 * time.Minute, "2 minutes ago"},
+		{90 * time.Minute, "1 hour ago"},
+		{36 * time.Hour, "1 day ago"},
+	} {
+		if got := timeAgo(time.Now().Add(-test.age)); got != test.want {
+			t.Errorf("timeAgo(%s) = %q, want %q", test.age, got, test.want)
+		}
+	}
+}
+
 func TestPeerActive(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	for _, test := range []struct {

@@ -1,22 +1,22 @@
 {{template "header" .}}
-<section class="signal-map" aria-label="Status jaringan">
-  <div class="node hub"><span>HUB</span><strong>10.77.0.1</strong><small>{{if .WG.Running}}WireGuard aktif{{else}}WireGuard berhenti{{end}}</small></div>
+<section class="signal-map" aria-label="Network status">
+  <div class="node hub"><span>HUB</span><strong>10.77.0.1</strong><small>{{if .WG.Running}}WireGuard active{{else}}WireGuard stopped{{end}}</small></div>
   <div class="tunnel"><span></span><span></span><span></span></div>
-  <div class="node peers"><span>PEERS</span><strong>{{.WG.ActiveCount}} / {{.WG.PeerCount}}</strong><small>aktif sekarang</small></div>
+  <div class="node peers"><span>PEERS</span><strong>{{.WG.ActiveCount}} / {{.WG.PeerCount}}</strong><small>active now</small></div>
   <div class="tunnel"><span></span><span></span><span></span></div>
-  <div class="node services"><span>ROUTES</span><strong>{{len .Services}}</strong><small>domain terdaftar</small></div>
+  <div class="node services"><span>ROUTES</span><strong>{{len .Services}}</strong><small>registered domains</small></div>
 </section>
 <section class="metrics">
-  <article><small>Endpoint publik</small><strong class="mono">{{.Endpoint}}</strong></article>
-  <article><small>Data diterima</small><strong>{{bytes .WG.Received}}</strong></article>
-  <article><small>Data dikirim</small><strong>{{bytes .WG.Transmitted}}</strong></article>
+  <article><small>Public endpoint</small><strong class="mono">{{.Endpoint}}</strong></article>
+  <article><small>Data received</small><strong>{{bytes .WG.Received}}</strong></article>
+  <article><small>Data sent</small><strong>{{bytes .WG.Transmitted}}</strong></article>
 </section>
 <div class="split">
-  <section class="panel"><div class="panel-head"><div><p class="eyebrow">TUNNELS</p><h2>Peer terbaru</h2></div><a class="text-link" href="/peers">Kelola peer</a></div>
-    {{if .Peers}}<div class="compact-list">{{range .Peers}}<div><span class="kind">{{.Kind}}</span><a class="peer-quick-link" href="/peers/{{.ID}}"><strong>{{.Name}}</strong></a><code>{{.IP}}</code></div>{{end}}</div>{{else}}<div class="empty">Belum ada peer. Buat profil pertama untuk mengakses jaringan.</div>{{end}}
+  <section class="panel"><div class="panel-head"><div><p class="eyebrow">TUNNELS</p><h2>Recent peers</h2></div><a class="text-link" href="/peers">Manage peers</a></div>
+    {{if .Peers}}<div class="compact-list">{{range .Peers}}<div><span class="kind">{{.Kind}}</span><a class="peer-quick-link" href="/peers/{{.ID}}"><strong>{{.Name}}</strong></a><code>{{.IP}}</code></div>{{end}}</div>{{else}}<div class="empty">No peers yet. Create your first profile to access the network.</div>{{end}}
   </section>
-  <section class="panel"><div class="panel-head"><div><p class="eyebrow">PRIVATE DNS</p><h2>Rute aplikasi</h2></div><a class="text-link" href="/services">Kelola domain</a></div>
-    {{if .Services}}<div class="compact-list">{{range .Services}}<div><strong>{{.Host}}</strong><code>{{.Target}}</code></div>{{end}}</div>{{else}}<div class="empty">Belum ada domain. Hubungkan Laravel lokal atau VPS lain.</div>{{end}}
+  <section class="panel"><div class="panel-head"><div><p class="eyebrow">PRIVATE DNS</p><h2>Application routes</h2></div><a class="text-link" href="/services">Manage domains</a></div>
+    {{if .Services}}<div class="compact-list">{{range .Services}}<div><strong>{{.Host}}</strong><code>{{.Target}}</code></div>{{end}}</div>{{else}}<div class="empty">No domains yet. Connect a local application or another server.</div>{{end}}
   </section>
 </div>
 {{template "footer" .}}

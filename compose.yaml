@@ -68,17 +68,10 @@ services:
       - ./deploy/coredns/Corefile:/etc/coredns/Corefile:ro
       - ./data/coredns:/data/coredns:ro
 
-  laravel-example:
-    image: serversideup/php:8.4-cli
-    container_name: privatewg-laravel-example
+  app-example:
+    image: nginx:1.29-alpine
+    container_name: privatewg-app-example
     restart: unless-stopped
     profiles: ["example"]
-    working_dir: /var/www/html
-    command: sh -c 'test -f artisan || composer create-project laravel/laravel . --no-interaction; php artisan serve --host=0.0.0.0 --port=8080'
     ports:
-      - "127.0.0.1:8081:8080"
-    volumes:
-      - laravel_example:/var/www/html
-
-volumes:
-  laravel_example:
+      - "127.0.0.1:8081:80"

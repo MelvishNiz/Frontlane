@@ -29,7 +29,7 @@ document.addEventListener("click", async (event) => {
   try {
     await navigator.clipboard.writeText(target.value);
     const original = button.textContent;
-    button.textContent = "Config disalin";
+    button.textContent = "Config copied";
     window.setTimeout(() => { button.textContent = original; }, 1800);
   } catch {
     target.select();
@@ -46,16 +46,16 @@ document.querySelectorAll("dialog").forEach((dialog) => {
 document.querySelector("dialog[data-open-on-error]")?.showModal();
 
 const peerRows = [...document.querySelectorAll("[data-peer-id]")];
-const relativeTime = new Intl.RelativeTimeFormat("id", { numeric: "auto" });
+const relativeTime = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 function formatRelative(timestamp) {
-  if (!timestamp) return "belum pernah";
+  if (!timestamp) return "never";
   const seconds = Math.round(timestamp - Date.now() / 1000);
   const ranges = [[86400, "day"], [3600, "hour"], [60, "minute"]];
   for (const [size, unit] of ranges) {
     if (Math.abs(seconds) >= size) return relativeTime.format(Math.round(seconds / size), unit);
   }
-  return "baru saja";
+  return "just now";
 }
 
 function formatBytes(value) {
@@ -79,7 +79,7 @@ function renderPeerStatus(root, peer) {
   const state = root.querySelector("[data-peer-state]");
   const stateText = root.querySelector("[data-peer-state-text]");
   state?.classList.toggle("online", peer.enabled && peer.active);
-  if (stateText) stateText.textContent = !peer.enabled ? (root.classList.contains("peer-detail") ? "Akses dijeda" : "Dijeda") : peer.active ? "Terhubung" : "Tidak terhubung";
+  if (stateText) stateText.textContent = !peer.enabled ? (root.classList.contains("peer-detail") ? "Access paused" : "Paused") : peer.active ? "Connected" : "Disconnected";
 
   const handshake = root.querySelector("[data-peer-handshake]");
   if (handshake) {

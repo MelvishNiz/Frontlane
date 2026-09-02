@@ -106,30 +106,30 @@ type traefikForwardingTimeouts struct {
 
 func validateService(host, target, baseDomain string) error {
 	if len(host) > 253 || !hostnamePattern.MatchString(host) {
-		return errors.New("domain tidak valid")
+		return errors.New("invalid domain")
 	}
 	if host == "panel."+baseDomain {
-		return errors.New("domain panel dicadangkan untuk PrivateWG")
+		return errors.New("the panel domain is reserved for PrivateWG")
 	}
 	u, err := url.Parse("http://" + target)
 	if err != nil || u.Host != target || u.Path != "" || u.User != nil {
-		return errors.New("target harus berbentuk host:port")
+		return errors.New("target must use host:port format")
 	}
 	hostPart, port, err := net.SplitHostPort(target)
 	if err != nil || hostPart == "" || port == "" {
-		return errors.New("target harus berbentuk host:port")
+		return errors.New("target must use host:port format")
 	}
 	portNumber, err := strconv.Atoi(port)
 	if err != nil || portNumber < 1 || portNumber > 65535 {
-		return errors.New("port target harus 1-65535")
+		return errors.New("target port must be between 1 and 65535")
 	}
 	if ip := net.ParseIP(hostPart); ip != nil {
 		_, vpn, _ := net.ParseCIDR("10.77.0.0/24")
 		if !vpn.Contains(ip) && !ip.IsLoopback() {
-			return errors.New("target IP hanya boleh loopback atau subnet 10.77.0.0/24")
+			return errors.New("target IP must be loopback or within 10.77.0.0/24")
 		}
 	} else if hostPart != "localhost" {
-		return errors.New("hostname target hanya boleh localhost; gunakan IP WireGuard untuk VPS lain")
+		return errors.New("target hostname must be localhost; use the WireGuard IP for another server")
 	}
 	return nil
 }
@@ -261,18 +261,18 @@ func routeErrorPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	title := "Aplikasi tidak terjangkau"
+	title := "Application unreachable"
 	label := "UPSTREAM OFFLINE"
-	message := "Tunnel aktif, tetapi server aplikasi belum merespons. Periksa peer atau layanan di VPS tujuan."
+	message := "The tunnel is active, but the application server is not responding. Check the peer and service on the target server."
 	switch status {
 	case http.StatusForbidden:
-		title = "VPN diperlukan"
+		title = "VPN required"
 		label = "PRIVATE NETWORK"
-		message = "Hubungkan perangkat ke WireGuard, lalu muat ulang halaman ini."
+		message = "Connect this device to WireGuard, then reload the page."
 	case http.StatusServiceUnavailable:
-		title = "Rute sedang dijeda"
+		title = "Route paused"
 		label = "ROUTE PAUSED"
-		message = "Domain ini dinonaktifkan sementara oleh administrator jaringan."
+		message = "This domain has been temporarily disabled by the network administrator."
 	case http.StatusBadGateway, http.StatusGatewayTimeout:
 	default:
 		http.NotFound(w, r)
@@ -283,7 +283,7 @@ func routeErrorPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `<!doctype html>
-<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>%s - PrivateWG</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>%s - PrivateWG</title>
 <style>:root{color:#163044;background:#eef5f7;font-family:ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15%% 12%%,#d5f1ec 0,transparent 28rem),radial-gradient(circle at 85%% 90%%,#dbe8f5 0,transparent 30rem),#eef5f7}.card{width:min(620px,100%%);padding:48px;background:#ffffffea;border:1px solid #cfdee5;border-radius:26px;box-shadow:0 28px 80px #17384c1a}.signal{display:flex;gap:4px;align-items:end;height:25px;margin-bottom:32px}.signal i{display:block;width:5px;background:#12a99b;border-radius:4px}.signal i:nth-child(1){height:9px}.signal i:nth-child(2){height:16px}.signal i:nth-child(3){height:24px;opacity:.3}.label{color:#07877e;font:700 11px ui-monospace,monospace;letter-spacing:.16em}h1{margin:12px 0 14px;color:#0b2942;font-size:clamp(34px,7vw,56px);line-height:1;letter-spacing:-.045em}p{margin:0;color:#627b8c;font-size:16px;line-height:1.7}.meta{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid #dce7ee;color:#77909f;font:11px ui-monospace,monospace}@media(max-width:520px){.card{padding:32px 25px}.meta{display:grid}}</style></head>
 <body><main class="card"><div class="signal" aria-hidden="true"><i></i><i></i><i></i></div><span class="label">%s - %d</span><h1>%s</h1><p>%s</p><div class="meta"><span>PrivateWG network edge</span><span>HTTP %d</span></div></main></body></html>`, title, label, status, title, message, status)
 }

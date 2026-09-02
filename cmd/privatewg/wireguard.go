@@ -228,7 +228,7 @@ func (s *server) storeEncryptedConfig(peerID int64, config string) error {
 
 func (s *server) decryptedPeerConfig(p peer) (string, error) {
 	if len(p.ConfigCipher) == 0 {
-		return "", errors.New("konfigurasi peer lama tidak tersimpan; buat ulang peer untuk mendapatkan config dan QR")
+		return "", errors.New("legacy peer configuration was not stored; recreate the peer to get its config and QR code")
 	}
 	key, err := s.configEncryptionKey()
 	if err != nil {
@@ -243,12 +243,12 @@ func (s *server) decryptedPeerConfig(p peer) (string, error) {
 		return "", err
 	}
 	if len(p.ConfigCipher) < gcm.NonceSize() {
-		return "", errors.New("data konfigurasi peer rusak")
+		return "", errors.New("peer configuration data is corrupt")
 	}
 	nonce, ciphertext := p.ConfigCipher[:gcm.NonceSize()], p.ConfigCipher[gcm.NonceSize():]
 	plain, err := gcm.Open(nil, nonce, ciphertext, []byte("privatewg-peer-config"))
 	if err != nil {
-		return "", errors.New("konfigurasi peer tidak dapat didekripsi")
+		return "", errors.New("peer configuration could not be decrypted")
 	}
 	return string(plain), nil
 }

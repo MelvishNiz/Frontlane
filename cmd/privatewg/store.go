@@ -166,7 +166,7 @@ func (s *store) createPeer(name, kind, publicKey string) (peer, error) {
 		}
 	}
 	if ip == "" {
-		return peer{}, errors.New("subnet peer penuh")
+		return peer{}, errors.New("peer subnet is full")
 	}
 	result, err := s.db.Exec(`INSERT INTO peers(name,kind,ip,public_key) VALUES(?,?,?,?)`, name, kind, ip, publicKey)
 	if err != nil {
@@ -281,7 +281,7 @@ func (s *store) audit(action, subject, remoteIP string) {
 
 func friendlyDBError(err error) error {
 	if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-		return errors.New("nama, domain, IP, atau public key sudah digunakan")
+		return errors.New("name, domain, IP, or public key is already in use")
 	}
 	return err
 }

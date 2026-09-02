@@ -1,28 +1,41 @@
 # PrivateWG
 
-Panel WireGuard ringan untuk aplikasi web privat. Go + SQLite mengelola peer dan domain; Traefik menyediakan Let's Encrypt; CoreDNS memberi DNS hanya untuk klien VPN.
+PrivateWG is a lightweight control panel for private web applications. It manages WireGuard peers and domains with Go and SQLite, uses Traefik for HTTPS, and provides private DNS through CoreDNS.
 
-## Prasyarat
+## Requirements
 
-- VPS Ubuntu 24.04/Debian 12 dengan IPv4 publik.
-- Docker Engine + Compose plugin.
-- Kernel WireGuard dan `nftables` pada host.
-- Domain dengan DNS provider apa pun.
-- Record DNS publik `A` untuk `panel.example.com` dan setiap domain aplikasi menuju IP VPS hub.
-- Port publik: UDP `51820`, TCP `80/443`. Panel tersedia publik melalui HTTPS; domain aplikasi tetap ditolak tanpa IP WireGuard.
+- Linux server with a public IPv4 address, Docker Engine, and Docker Compose
+- WireGuard kernel support
+- A free `wg0` interface and `10.77.0.0/24` subnet
+- Public UDP `51820` and TCP `80/443`
+- Public DNS A records for `panel.example.com` and each application domain pointing to the hub server
 
-## Instalasi
+## Install the Server
 
 ```bash
 cp .env.example .env
 chmod 600 .env
 chmod 700 data/traefik/letsencrypt
-# Edit seluruh nilai .env; gunakan password acak minimum 20 karakter.
-docker compose build
-docker compose up -d --remove-orphans
 ```
 
-Startup pertama membuat peer `bootstrap-admin`. Ambil profil sekali:
+Edit `.env`:
+
+```dotenv
+PWG_PUBLIC_ENDPOINT=203.0.113.10:51820
+PWG_BASE_DOMAIN=example.com
+PWG_ACME_EMAIL=admin@example.com
+PWG_ADMIN_USER=admin
+PWG_ADMIN_PASSWORD=replace-with-at-least-20-random-characters
+```
+
+Start the server stack:
+
+```bash
+docker compose config --quiet
+docker compose up -d --build --remove-orphans
+```
+
+The first startup creates a `bootstrap-admin` peer. Copy its configuration, then remove the server copy:
 
 ```bash
 sudo cp data/privatewg/bootstrap.conf ~/privatewg-bootstrap.conf
@@ -30,66 +43,40 @@ sudo chown "$USER":"$USER" ~/privatewg-bootstrap.conf
 sudo rm data/privatewg/bootstrap.conf
 ```
 
-Buka `https://panel.example.com` langsung tanpa WireGuard. Dashboard Traefik tersedia di `https://panel.example.com/traefik/dashboard/` dan memakai sesi login panel yang sama. Import profil bootstrap hanya untuk mengakses aplikasi privat, lalu hapus peer bootstrap setelah peer pengganti dibuat.
+Open `https://panel.example.com`. Import `privatewg-bootstrap.conf` into WireGuard to access private application domains. Create a replacement peer, then delete `bootstrap-admin`.
 
-Migrasi dari rilis Caddy: verifikasi seluruh DNS A/AAAA dan TCP `80` lebih dahulu, jalankan cutover sekali untuk menghindari rate limit Let's Encrypt, hentikan stack lama dengan `docker compose down`, lalu jalankan `docker compose up -d --build --remove-orphans`. Sertifikat Caddy tidak kompatibel dengan penyimpanan Traefik; Traefik menerbitkan ulang sertifikat. Verifikasi `data/traefik/letsencrypt/acme.json` terisi dan seluruh HTTPS berhasil. Simpan `data/caddy` sementara untuk rollback.
+## Publish an Application
 
-Peer baru dapat dibuka kembali dari menu Peer. Halaman detail menyediakan QR, salin config, download `.conf`, dan toggle akses; config disimpan terenkripsi. Peer yang dibuat oleh versi lama tidak memiliki private key tersimpan dan harus dibuat ulang.
-
-Menu Domain menerima subdomain `PWG_BASE_DOMAIN` maupun domain external. Untuk domain external, buat record DNS publik `A`/`AAAA` menuju VPS hub sebelum mengaktifkan rute. Toggle domain menghapus atau memasang kembali upstream tanpa menghapus datanya. Domain tetap menampilkan halaman status saat rute dijeda, upstream/VPS tidak terjangkau, atau pengunjung belum terhubung ke VPN.
-
-Aktifkan firewall setelah memastikan SSH berjalan pada TCP `22`. Script memakai default-deny dan mengizinkan SSH `22`; edit script dahulu bila port SSH berbeda:
-
-```bash
-sudo install -d -m 755 /etc/nftables.d
-sudo sh scripts/firewall-nftables.sh
-```
-
-Agar persisten, include `/etc/nftables.d/*.nft` dari `/etc/nftables.conf`, lalu aktifkan `nftables`:
-
-```bash
-sudo systemctl enable --now nftables
-```
-
-## Laravel pada VPS hub
-
-Expose web server Laravel hanya ke loopback, contoh Compose Laravel:
+For an application on the hub server, expose its HTTP port only on loopback:
 
 ```yaml
 ports:
   - "127.0.0.1:8081:80"
 ```
 
-Buat record DNS publik `app.example.com` menuju IP hub. Panel Domain: domain `app.example.com`, target `127.0.0.1:8081`.
-
-Container Laravel 12 contoh opsional:
+Add the domain in PrivateWG with target `127.0.0.1:8081`. A generic Nginx example is available:
 
 ```bash
-docker compose --profile example up -d
+docker compose --profile example up -d app-example
 ```
 
-Startup pertama mengunduh Laravel melalui Composer ke volume `laravel_example`. Target panel: `127.0.0.1:8081`. Mode `artisan serve` hanya demo; aplikasi produksi tetap gunakan Nginx/FrankenPHP.
+For every application domain, point its public DNS A record to the hub server. PrivateWG accepts HTTP upstreams on loopback or `10.77.0.0/24`; Traefik provides public TLS termination and limits application access to VPN peers.
 
-## Laravel pada VPS lain
+## Install the Client on Another Server
 
-1. Buat peer jenis Server dari panel, lalu download konfigurasinya.
-2. Simpan konfigurasi tersebut sebagai `client/config/wg0.conf` pada VPS aplikasi.
-3. Jalankan client WireGuard:
+Create a peer with type `Server` in PrivateWG. Download its configuration and save it as `client/config/wg0.conf` on the application server.
+
+Build and start the tunnel client:
 
 ```bash
 chmod 600 client/config/wg0.conf
-docker compose -f client/compose.yaml up -d
+docker compose -f client/compose.yaml up -d --build
 docker compose -f client/compose.yaml logs -f
 ```
 
-Container memakai network namespace host. Interface `wg0` dan rute `10.77.0.0/24` muncul langsung pada VPS, sama seperti instalasi WireGuard native. Kernel host tetap harus mendukung WireGuard; bila pembuatan interface gagal, jalankan `sudo modprobe wireguard` pada host.
+The container creates `wg0` directly on the host. Bind the application to its peer IP, such as `10.77.0.20:80`, then add that address as the domain target in PrivateWG. Allow the application port only through `wg0`.
 
-4. Bind web server ke IP peer, misalnya `10.77.0.20:80`, atau `0.0.0.0:80` dengan firewall yang membatasi akses. Layanan yang hanya bind ke `127.0.0.1` tidak dapat dicapai melalui IP peer.
-5. Izinkan port aplikasi hanya dari interface `wg0` pada firewall VPS tersebut.
-6. Buat record DNS publik domain menuju IP VPS hub, bukan VPS aplikasi.
-7. Tambahkan domain di panel dengan target `10.77.0.20:80`.
-
-Verifikasi pada VPS aplikasi:
+Verify the tunnel:
 
 ```bash
 ip address show wg0
@@ -97,33 +84,40 @@ sudo wg show wg0
 ping -c 3 10.77.0.1
 ```
 
-Traffic browser berhenti di Traefik hub. Traefik meneruskan request ke VPS aplikasi melalui WireGuard. File `client/config/wg0.conf` berisi private key, diabaikan oleh Git dan Docker build context.
+The Docker client removes `DNS =` from its runtime configuration because a container cannot change the host resolver. Configure host DNS separately if the application server must resolve PrivateWG domains.
 
-## Operasi
+## Firewall
+
+The included script allows SSH on TCP `22`, WireGuard on UDP `51820`, and HTTP/HTTPS on TCP `80/443`, then applies a default-deny policy. Review it first if your SSH port or firewall setup differs.
+
+```bash
+sudo install -d -m 755 /etc/nftables.d
+sudo sh scripts/firewall-nftables.sh
+```
+
+## Operations
 
 ```bash
 docker compose logs -f privatewg
 docker compose logs -f traefik
 docker compose restart coredns
 sudo wg show wg0
-docker compose config
 ```
 
-Backup minimum:
+Create a consistent backup while the stack is stopped:
 
 ```bash
-tar czf privatewg-backup.tgz data/privatewg data/wireguard data/traefik data/coredns
+docker compose stop
+tar czf privatewg-backup.tgz .env data/privatewg data/wireguard data/traefik data/coredns
+docker compose start
 ```
 
-Backup berisi server private key. Simpan terenkripsi dan batasi akses.
+The backup contains passwords, private keys, peer configurations, and certificates. Store it encrypted with restricted permissions.
 
-## Batas V1
+## Limits
 
-- Satu admin; password awal tidak otomatis berubah saat `.env` berubah.
-- Config peer baru disimpan terenkripsi AES-256-GCM agar QR dan download tetap tersedia. Peer lama harus dibuat ulang.
-- Key enkripsi diturunkan dari server private key; mengganti `data/wireguard/server.key` membuat config tersimpan tidak dapat dibuka.
-- Session berada di memori; restart meminta login ulang.
-- Subnet tetap `10.77.0.0/24`; split tunnel tetap.
-- Sertifikat HTTP-01 memerlukan record `A` publik per domain dan TCP `80` publik.
-- Panel publik mengandalkan HTTPS, password kuat, rate limit, CSRF, dan audit log; V1 belum menyediakan MFA.
-- Target proxy dibatasi ke loopback atau `10.77.0.0/24` untuk mencegah SSRF.
+- One administrator; changing `.env` does not update an existing account
+- Fixed `wg0`, UDP `51820`, and `10.77.0.0/24`
+- HTTP upstreams only; Traefik handles HTTPS
+- In-memory sessions require sign-in after restart
+- No MFA

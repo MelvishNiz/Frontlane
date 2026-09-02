@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-command -v nft >/dev/null 2>&1 || { echo "nftables belum terpasang" >&2; exit 1; }
+command -v nft >/dev/null 2>&1 || { echo "nftables is not installed" >&2; exit 1; }
 
 cat >/etc/nftables.d/privatewg.nft <<'RULES'
 table inet privatewg {
@@ -23,4 +23,4 @@ RULES
 nft -c -f /etc/nftables.d/privatewg.nft
 nft list table inet privatewg >/dev/null 2>&1 && nft delete table inet privatewg || true
 nft -f /etc/nftables.d/privatewg.nft
-printf '%s\n' 'Firewall PrivateWG aktif: UDP 51820 + TCP 80/443 publik; DNS dan port panel internal hanya wg0.'
+printf '%s\n' 'PrivateWG firewall active: public UDP 51820 and TCP 80/443; DNS and panel ports available only through wg0.'

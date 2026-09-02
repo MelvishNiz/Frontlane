@@ -173,18 +173,18 @@ func (s *server) loginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	s.render(w, "login.html", viewData{Title: "Masuk"})
+	s.render(w, "login.html", viewData{Title: "Sign in"})
 }
 
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	if s.rateLimited(ip) {
-		s.renderStatus(w, "login.html", viewData{Title: "Masuk", Error: "Terlalu banyak percobaan. Coba lagi dalam 15 menit."}, http.StatusTooManyRequests)
+		s.renderStatus(w, "login.html", viewData{Title: "Sign in", Error: "Too many attempts. Try again in 15 minutes."}, http.StatusTooManyRequests)
 		return
 	}
 	if err := r.ParseForm(); err != nil || !s.store.authenticate(r.FormValue("username"), r.FormValue("password")) {
 		s.recordFailure(ip)
-		s.renderStatus(w, "login.html", viewData{Title: "Masuk", Error: "Username atau password tidak cocok."}, http.StatusUnauthorized)
+		s.renderStatus(w, "login.html", viewData{Title: "Sign in", Error: "Incorrect username or password."}, http.StatusUnauthorized)
 		return
 	}
 	token := randomToken(32)
@@ -199,7 +199,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	if cookie, err := r.Cookie("pwg_session"); err == nil {
@@ -215,7 +215,7 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	peers, _ := s.store.listPeers()
 	services, _ := s.store.listServices()
 	status, _ := s.wireGuardStatus(peers)
-	s.render(w, "dashboard.html", s.data(r, "Ringkasan", peers, services, status))
+	s.render(w, "dashboard.html", s.data(r, "Overview", peers, services, status))
 }
 
 func (s *server) peersPage(w http.ResponseWriter, r *http.Request) {
@@ -226,13 +226,13 @@ func (s *server) peersPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	kind := r.FormValue("kind")
 	if !peerNamePattern.MatchString(name) || (kind != "client" && kind != "server") {
-		s.peerError(w, r, "Nama atau jenis peer tidak valid.", http.StatusBadRequest)
+		s.peerError(w, r, "Invalid peer name or type.", http.StatusBadRequest)
 		return
 	}
 	privateKey, publicKey, err := generateKeyPair()
@@ -247,14 +247,14 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.applyWireGuard(); err != nil {
 		_ = s.store.deletePeer(p.ID)
-		s.peerError(w, r, "WireGuard menolak konfigurasi baru: "+err.Error(), http.StatusInternalServerError)
+		s.peerError(w, r, "WireGuard rejected the new configuration: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	clientConfig := s.clientConfig(p, privateKey)
 	if err := s.storeEncryptedConfig(p.ID, clientConfig); err != nil {
 		_ = s.store.deletePeer(p.ID)
 		_ = s.applyWireGuard()
-		s.peerError(w, r, "Config peer gagal disimpan: "+err.Error(), http.StatusInternalServerError)
+		s.peerError(w, r, "Peer configuration could not be saved: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("peer.create", p.Name+" "+p.IP, clientIP(r))
@@ -269,7 +269,7 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	peers, err := s.store.listPeers()
 	if err != nil {
-		http.Error(w, "Peer gagal dimuat", http.StatusInternalServerError)
+		http.Error(w, "Peer could not be loaded", http.StatusInternalServerError)
 		return
 	}
 	status, _ := s.wireGuardStatus(peers)
@@ -284,7 +284,7 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data := s.data(r, "Detail peer", peers, nil, status)
+	data := s.data(r, "Peer details", peers, nil, status)
 	data.Peer = *selected
 	data.PeerCreated = r.URL.Query().Get("created") == "1"
 	data.ConfigStored = selected.HasConfig
@@ -310,11 +310,11 @@ type peerStatusResponse struct {
 func (s *server) peerStatuses(w http.ResponseWriter, r *http.Request) {
 	peers, err := s.store.listPeers()
 	if err != nil {
-		http.Error(w, "Status peer gagal dimuat", http.StatusInternalServerError)
+		http.Error(w, "Peer status could not be loaded", http.StatusInternalServerError)
 		return
 	}
 	if _, err := s.wireGuardStatus(peers); err != nil {
-		http.Error(w, "Status WireGuard gagal dimuat", http.StatusServiceUnavailable)
+		http.Error(w, "WireGuard status could not be loaded", http.StatusServiceUnavailable)
 		return
 	}
 	response := make([]peerStatusResponse, len(peers))
@@ -347,7 +347,7 @@ func (s *server) peerQRCode(w http.ResponseWriter, r *http.Request) {
 	}
 	png, err := qrPNG(config)
 	if err != nil {
-		http.Error(w, "QR code gagal dibuat", http.StatusInternalServerError)
+		http.Error(w, "QR code could not be generated", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")
@@ -376,13 +376,13 @@ func (s *server) peerConfigResponse(w http.ResponseWriter, r *http.Request) (pee
 
 func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	p, err := s.store.peerByID(id)
 	if err != nil {
-		http.Error(w, "Peer tidak ditemukan", http.StatusNotFound)
+		http.Error(w, "Peer not found", http.StatusNotFound)
 		return
 	}
 	if err := s.store.setPeerEnabled(id, !p.Enabled); err != nil {
@@ -392,12 +392,12 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 	if err := s.applyWireGuard(); err != nil {
 		_ = s.store.setPeerEnabled(id, p.Enabled)
 		_ = s.applyWireGuard()
-		http.Error(w, "Status peer gagal diubah: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Peer status could not be changed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	state := "dinonaktifkan"
+	state := "disabled"
 	if !p.Enabled {
-		state = "diaktifkan"
+		state = "enabled"
 	}
 	s.store.audit("peer.toggle", p.Name+" "+state, clientIP(r))
 	next := r.FormValue("next")
@@ -409,13 +409,13 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	old, err := s.store.peerByID(id)
 	if err != nil {
-		http.Error(w, "Peer tidak ditemukan", http.StatusNotFound)
+		http.Error(w, "Peer not found", http.StatusNotFound)
 		return
 	}
 	if err := s.store.deletePeer(id); err != nil {
@@ -425,21 +425,21 @@ func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 	if err := s.applyWireGuard(); err != nil {
 		_ = s.store.restorePeer(old)
 		_ = s.applyWireGuard()
-		http.Error(w, "Peer gagal dihapus: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Peer could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("peer.delete", old.Name+" "+old.IP, clientIP(r))
-	http.Redirect(w, r, "/peers?notice=Peer+dihapus", http.StatusSeeOther)
+	http.Redirect(w, r, "/peers?notice=Peer+deleted", http.StatusSeeOther)
 }
 
 func (s *server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	services, _ := s.store.listServices()
-	s.render(w, "services.html", s.data(r, "Domain & layanan", nil, services, wgStatus{}))
+	s.render(w, "services.html", s.data(r, "Domains & services", nil, services, wgStatus{}))
 }
 
 func (s *server) createService(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	host := strings.ToLower(strings.TrimSpace(r.FormValue("host")))
@@ -456,22 +456,22 @@ func (s *server) createService(w http.ResponseWriter, r *http.Request) {
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.deleteService(svc.ID)
 		_ = s.writeRoutingFiles()
-		s.serviceError(w, r, "Konfigurasi proxy ditolak: "+err.Error(), http.StatusInternalServerError)
+		s.serviceError(w, r, "Proxy configuration rejected: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("service.create", svc.Host+" "+svc.Target, clientIP(r))
-	http.Redirect(w, r, "/services?notice=Layanan+ditambahkan", http.StatusSeeOther)
+	http.Redirect(w, r, "/services?notice=Service+added", http.StatusSeeOther)
 }
 
 func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	svc, err := s.store.serviceByID(id)
 	if err != nil {
-		http.Error(w, "Layanan tidak ditemukan", http.StatusNotFound)
+		http.Error(w, "Service not found", http.StatusNotFound)
 		return
 	}
 	if err := s.store.setServiceEnabled(id, !svc.Enabled); err != nil {
@@ -481,12 +481,12 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.setServiceEnabled(id, svc.Enabled)
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Status domain gagal diubah: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Domain status could not be changed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	state := "dinonaktifkan"
+	state := "disabled"
 	if !svc.Enabled {
-		state = "diaktifkan"
+		state = "enabled"
 	}
 	s.store.audit("service.toggle", svc.Host+" "+state, clientIP(r))
 	http.Redirect(w, r, "/services?notice=Domain+"+state, http.StatusSeeOther)
@@ -494,13 +494,13 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 	if !s.validCSRF(r) {
-		http.Error(w, "CSRF token tidak valid", http.StatusForbidden)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	old, err := s.store.serviceByID(id)
 	if err != nil {
-		http.Error(w, "Layanan tidak ditemukan", http.StatusNotFound)
+		http.Error(w, "Service not found", http.StatusNotFound)
 		return
 	}
 	if err := s.store.deleteService(id); err != nil {
@@ -510,11 +510,11 @@ func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.restoreService(old)
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Layanan gagal dihapus: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Service could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("service.delete", old.Host+" "+old.Target, clientIP(r))
-	http.Redirect(w, r, "/services?notice=Layanan+dihapus", http.StatusSeeOther)
+	http.Redirect(w, r, "/services?notice=Service+deleted", http.StatusSeeOther)
 }
 
 func (s *server) peerError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
@@ -527,7 +527,7 @@ func (s *server) peerError(w http.ResponseWriter, r *http.Request, message strin
 
 func (s *server) serviceError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
 	services, _ := s.store.listServices()
-	data := s.data(r, "Domain & layanan", nil, services, wgStatus{})
+	data := s.data(r, "Domains & services", nil, services, wgStatus{})
 	data.Error = message
 	s.renderStatus(w, "services.html", data, statusCode)
 }
@@ -687,17 +687,20 @@ func humanBytes(n int64) string {
 
 func timeAgo(t time.Time) string {
 	if t.IsZero() {
-		return "belum pernah"
+		return "never"
 	}
 	d := time.Since(t)
 	if d < time.Minute {
-		return "baru saja"
+		return "just now"
 	}
-	if d < time.Hour {
-		return fmt.Sprintf("%d menit lalu", int(d.Minutes()))
+	value, unit := int(d.Minutes()), "minutes"
+	if d >= 24*time.Hour {
+		value, unit = int(d.Hours()/24), "days"
+	} else if d >= time.Hour {
+		value, unit = int(d.Hours()), "hours"
 	}
-	if d < 24*time.Hour {
-		return fmt.Sprintf("%d jam lalu", int(d.Hours()))
+	if value == 1 {
+		unit = strings.TrimSuffix(unit, "s")
 	}
-	return fmt.Sprintf("%d hari lalu", int(d.Hours()/24))
+	return fmt.Sprintf("%d %s ago", value, unit)
 }

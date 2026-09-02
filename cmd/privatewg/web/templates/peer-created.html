@@ -1,52 +1,52 @@
 {{template "header" .}}
 <div class="peer-detail" data-peer-id="{{.Peer.ID}}">
 <div class="detail-toolbar">
-  <a class="back-link" href="/peers"><svg class="icon" aria-hidden="true"><use href="#icon-back"></use></svg> Semua peer</a>
+  <a class="back-link" href="/peers"><svg class="icon" aria-hidden="true"><use href="#icon-back"></use></svg> All peers</a>
   <div class="detail-access">
-    <span class="peer-state {{if and .Peer.Enabled .Peer.Active}}online{{end}}" data-peer-state><i></i><span data-peer-state-text>{{if not .Peer.Enabled}}Akses dijeda{{else if .Peer.Active}}Terhubung{{else}}Tidak terhubung{{end}}</span></span>
+    <span class="peer-state {{if and .Peer.Enabled .Peer.Active}}online{{end}}" data-peer-state><i></i><span data-peer-state-text>{{if not .Peer.Enabled}}Access paused{{else if .Peer.Active}}Connected{{else}}Disconnected{{end}}</span></span>
     <form method="post" action="/peers/{{.Peer.ID}}/toggle">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <input type="hidden" name="next" value="/peers/{{.Peer.ID}}">
-      <button class="switch-control" type="submit" role="switch" aria-checked="{{.Peer.Enabled}}" aria-label="{{if .Peer.Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} peer {{.Peer.Name}}"><span></span></button>
+      <button class="switch-control" type="submit" role="switch" aria-checked="{{.Peer.Enabled}}" aria-label="{{if .Peer.Enabled}}Disable{{else}}Enable{{end}} peer {{.Peer.Name}}"><span></span></button>
     </form>
   </div>
 </div>
 <section class="peer-hero panel">
   <div class="peer-hero-title">
     <span class="device-icon large {{.Peer.Kind}}"><i></i></span>
-    <div><p class="eyebrow">{{if eq .Peer.Kind "client"}}CLIENT PEER{{else}}SERVER PEER{{end}}</p><h2>{{.Peer.Name}}</h2><p>Dibuat {{ago .Peer.CreatedAt}}</p></div>
+    <div><p class="eyebrow">{{if eq .Peer.Kind "client"}}CLIENT PEER{{else}}SERVER PEER{{end}}</p><h2>{{.Peer.Name}}</h2><p>Created {{ago .Peer.CreatedAt}}</p></div>
   </div>
   <div class="peer-facts">
-    <div><small>Alamat tunnel</small><code>{{.Peer.IP}} / 32</code></div>
-    <div><small>Handshake terakhir</small><strong data-peer-handshake data-timestamp="{{unix .Peer.LastHandshake}}">{{ago .Peer.LastHandshake}}</strong></div>
-    <div><small>Data diterima</small><strong data-peer-rx>{{bytes .Peer.ReceivedBytes}}</strong></div>
-    <div><small>Data dikirim</small><strong data-peer-tx>{{bytes .Peer.TransmittedBytes}}</strong></div>
+    <div><small>Tunnel address</small><code>{{.Peer.IP}} / 32</code></div>
+    <div><small>Last handshake</small><strong data-peer-handshake data-timestamp="{{unix .Peer.LastHandshake}}">{{ago .Peer.LastHandshake}}</strong></div>
+    <div><small>Data received</small><strong data-peer-rx>{{bytes .Peer.ReceivedBytes}}</strong></div>
+    <div><small>Data sent</small><strong data-peer-tx>{{bytes .Peer.TransmittedBytes}}</strong></div>
   </div>
 </section>
 
 {{if .ConfigStored}}
-{{if .PeerCreated}}<div class="alert notice" role="status"><b>Peer berhasil dibuat</b><span>Scan QR atau unduh file konfigurasi untuk menghubungkan perangkat.</span></div>{{end}}
+{{if .PeerCreated}}<div class="alert notice" role="status"><b>Peer created</b><span>Scan the QR code or download the configuration file to connect the device.</span></div>{{end}}
 <div class="credential-grid">
   <section class="panel qr-panel">
     <div class="panel-head"><div><p class="eyebrow">MOBILE ONBOARDING</p><h2>Scan QR code</h2></div><span class="secure-chip">Encrypted</span></div>
-    <div class="qr-frame"><img src="/peers/{{.Peer.ID}}/qr.png" alt="QR konfigurasi WireGuard untuk {{.Peer.Name}}" width="320" height="320"></div>
-    <p class="qr-help">Buka aplikasi WireGuard, pilih <b>Scan from QR code</b>, lalu arahkan kamera ke kode.</p>
+    <div class="qr-frame"><img src="/peers/{{.Peer.ID}}/qr.png" alt="WireGuard configuration QR code for {{.Peer.Name}}" width="320" height="320"></div>
+    <p class="qr-help">Open WireGuard, select <b>Scan from QR code</b>, then point the camera at the code.</p>
   </section>
   <section class="panel config-panel">
-    <div class="panel-head"><div><p class="eyebrow">DESKTOP ONBOARDING</p><h2>File konfigurasi</h2></div></div>
+    <div class="panel-head"><div><p class="eyebrow">DESKTOP ONBOARDING</p><h2>Configuration file</h2></div></div>
     <div class="config-actions">
       <a class="primary download-button" href="/peers/{{.Peer.ID}}/config"><svg class="download-icon" aria-hidden="true"><use href="#icon-download"></use></svg><span><b>Download config</b><small>{{.Peer.Name}}.conf</small></span></a>
-      <button class="secondary copy-button" type="button" data-copy-target="peer-config"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Salin isi config</button>
+      <button class="secondary copy-button" type="button" data-copy-target="peer-config"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy config</button>
     </div>
-    <label class="config-label" for="peer-config">Konfigurasi WireGuard</label>
+    <label class="config-label" for="peer-config">WireGuard configuration</label>
     <div class="code-window"><div class="code-window-bar"><span></span><span></span><span></span><small>wireguard.conf</small></div><textarea id="peer-config" readonly rows="14" spellcheck="false">{{.Config}}</textarea></div>
-    <div class="key-note"><span>◈</span><p><b>Tersimpan terenkripsi</b><small>Config dilindungi AES-256-GCM menggunakan key server WireGuard.</small></p></div>
+    <div class="key-note"><span>◈</span><p><b>Encrypted at rest</b><small>The config is protected with AES-256-GCM using the WireGuard server key.</small></p></div>
   </section>
 </div>
 {{else}}
 <section class="panel legacy-config">
   <span class="legacy-icon">!</span>
-  <div><p class="eyebrow">LEGACY PEER</p><h2>Config tidak tersedia</h2><p>Peer ini dibuat sebelum penyimpanan config terenkripsi ditambahkan. Private key tidak dapat direkonstruksi dari public key.</p><p>Hapus peer ini lalu buat ulang untuk mendapatkan QR dan tombol download.</p></div>
+  <div><p class="eyebrow">LEGACY PEER</p><h2>Config unavailable</h2><p>This peer was created before encrypted config storage was added. Its private key cannot be reconstructed from the public key.</p><p>Delete and recreate this peer to get a QR code and download button.</p></div>
 </section>
 {{end}}
 </div>

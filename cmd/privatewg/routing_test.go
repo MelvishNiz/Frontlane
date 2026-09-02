@@ -129,9 +129,9 @@ func TestRouteErrorPage(t *testing.T) {
 		status int
 		want   string
 	}{
-		{http.StatusForbidden, "VPN diperlukan"},
-		{http.StatusBadGateway, "Aplikasi tidak terjangkau"},
-		{http.StatusServiceUnavailable, "Rute sedang dijeda"},
+		{http.StatusForbidden, "VPN required"},
+		{http.StatusBadGateway, "Application unreachable"},
+		{http.StatusServiceUnavailable, "Route paused"},
 	} {
 		req := httptest.NewRequest(http.MethodGet, "/__privatewg/errors/"+strconv.Itoa(test.status), nil)
 		req.SetPathValue("status", strconv.Itoa(test.status))

@@ -1,6 +1,6 @@
 {{define "header"}}
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -28,10 +28,10 @@
       <span class="brand-mark"><i></i><i></i><i></i></span>
       <span><b>PrivateWG</b><small>Network control</small></span>
     </a>
-    <nav aria-label="Navigasi utama">
-      <a href="/"><span class="nav-icon"><svg><use href="#icon-dashboard"></use></svg></span><span>Ringkasan</span></a>
-      <a href="/peers"><span class="nav-icon"><svg><use href="#icon-devices"></use></svg></span><span>Peer</span></a>
-      <a href="/services"><span class="nav-icon"><svg><use href="#icon-language"></use></svg></span><span>Domain</span></a>
+    <nav aria-label="Main navigation">
+      <a href="/"><span class="nav-icon"><svg><use href="#icon-dashboard"></use></svg></span><span>Overview</span></a>
+      <a href="/peers"><span class="nav-icon"><svg><use href="#icon-devices"></use></svg></span><span>Peers</span></a>
+      <a href="/services"><span class="nav-icon"><svg><use href="#icon-language"></use></svg></span><span>Domains</span></a>
     </nav>
     <div class="rail-status">
       <div class="status-orbit"><span></span></div>
@@ -39,7 +39,7 @@
     </div>
     <div class="rail-foot">
       <div class="avatar">{{initial .User}}</div><span>{{.User}}</span>
-      <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link-button" type="submit">Keluar</button></form>
+      <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link-button" type="submit">Sign out</button></form>
     </div>
   </aside>
   <main>
@@ -47,11 +47,11 @@
       <div><p class="eyebrow">PRIVATE NETWORK / CONTROL</p><h1>{{.Title}}</h1></div>
       <div class="topbar-actions">
         <a class="traefik-button" href="/traefik/dashboard/" target="_blank" rel="noopener"><span class="traefik-mark">T</span><span>Traefik</span><svg><use href="#icon-open"></use></svg></a>
-        <div class="identity"><span class="live-pill"><i></i> Sistem aktif</span><small>{{.PanelDomain}}</small></div>
+        <div class="identity"><span class="live-pill"><i></i> System active</span><small>{{.PanelDomain}}</small></div>
       </div>
     </header>
-    {{if .Error}}<div class="alert error" role="alert"><b>Perlu perhatian</b><span>{{.Error}}</span></div>{{end}}
-    {{if .Notice}}<div class="alert notice" role="status"><b>Berhasil</b><span>{{.Notice}}</span></div>{{end}}
+    {{if .Error}}<div class="alert error" role="alert"><b>Attention required</b><span>{{.Error}}</span></div>{{end}}
+    {{if .Notice}}<div class="alert notice" role="status"><b>Success</b><span>{{.Notice}}</span></div>{{end}}
 {{end}}
 
 {{define "footer"}}

@@ -3,63 +3,63 @@
   <div class="directory-toolbar">
     <div>
       <p class="eyebrow">PRIVATE ROUTE DIRECTORY</p>
-      <h2>Domain & tujuan</h2>
-      <p class="muted">Domain internal maupun external tetap hanya dapat dibuka dari jaringan VPN.</p>
+      <h2>Domains & targets</h2>
+      <p class="muted">Internal and external domains remain accessible only through the VPN.</p>
     </div>
     <div class="toolbar-actions">
-      <span class="directory-count"><b>{{len .Services}}</b><small>rute terdaftar</small></span>
-      <button class="primary" type="button" data-dialog-open="service-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Tambah domain</button>
+      <span class="directory-count"><b>{{len .Services}}</b><small>registered routes</small></span>
+      <button class="primary" type="button" data-dialog-open="service-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add domain</button>
     </div>
   </div>
 
   <aside class="dns-note">
     <span class="dns-note-icon">DNS</span>
-    <p><b>Domain external didukung.</b><small>Arahkan DNS A/AAAA domain ke VPS ini. Traefik menerbitkan SSL otomatis; akses aplikasi tetap dibatasi ke subnet <code>10.77.0.0/24</code>.</small></p>
+    <p><b>External domains are supported.</b><small>Point the domain's public DNS A/AAAA record to this server. Traefik issues TLS certificates automatically; application access remains limited to <code>10.77.0.0/24</code>.</small></p>
   </aside>
 
   {{if .Services}}
   <div class="resource-list service-resource-list">
-    <div class="resource-header service-columns" aria-hidden="true"><span>Domain</span><span>Tujuan upstream</span><span>Tipe</span><span>Akses</span><span></span></div>
+    <div class="resource-header service-columns" aria-hidden="true"><span>Domain</span><span>Upstream target</span><span>Type</span><span>Access</span><span></span></div>
     {{range .Services}}
     <article class="resource-row service-columns {{if not .Enabled}}is-disabled{{end}}">
       <div class="resource-identity domain-identity">
         <span class="domain-icon">https</span>
-        <span><b>{{.Host}}</b><small>{{if .Enabled}}Route aktif{{else}}Route dijeda{{end}} · dibuat {{ago .CreatedAt}}</small></span>
+        <span><b>{{.Host}}</b><small>{{if .Enabled}}Route active{{else}}Route paused{{end}} · created {{ago .CreatedAt}}</small></span>
       </div>
       <code class="target-chip">{{.Target}}</code>
       <span class="scope-badge {{if not (internalDomain .Host)}}external{{end}}">{{if internalDomain .Host}}Internal{{else}}External{{end}}</span>
       <form method="post" action="/services/{{.ID}}/toggle" class="toggle-form">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Nonaktifkan{{else}}Aktifkan{{end}} domain {{.Host}}"><span></span></button>
+        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} domain {{.Host}}"><span></span></button>
       </form>
       <div class="row-actions">
-        <a class="row-detail" href="https://{{.Host}}" target="_blank" rel="noopener">Buka <svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
-        <form method="post" action="/services/{{.ID}}/delete" data-confirm="Hapus domain {{.Host}}?">
+        <a class="row-detail" href="https://{{.Host}}" target="_blank" rel="noopener">Open <svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
+        <form method="post" action="/services/{{.ID}}/delete" data-confirm="Delete domain {{.Host}}?">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <button class="icon-danger" type="submit" aria-label="Hapus domain {{.Host}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button>
+          <button class="icon-danger" type="submit" aria-label="Delete domain {{.Host}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button>
         </form>
       </div>
     </article>
     {{end}}
   </div>
   {{else}}
-  <div class="empty-state"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><h3>Belum ada domain</h3><p>Hubungkan domain pertama ke aplikasi lokal atau VPS peer.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Tambah domain</button></div>
+  <div class="empty-state"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><h3>No domains yet</h3><p>Connect the first domain to a local application or server peer.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Add domain</button></div>
   {{end}}
 </section>
 
 <dialog class="app-dialog" id="service-dialog" {{if .Error}}data-open-on-error{{end}}>
   <div class="dialog-card">
     <div class="dialog-head">
-      <div><p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Tambah domain</h2></div>
-      <button class="dialog-close" type="button" data-dialog-close aria-label="Tutup dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+      <div><p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Add domain</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
-    <p class="muted">Gunakan subdomain bawaan atau domain external milik Anda.</p>
+    <p class="muted">Use a built-in subdomain or your own external domain.</p>
     {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
     <form method="post" action="/services" class="stack-form">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Domain<input name="host" required placeholder="app.{{.BaseDomain}} atau app.domain-lain.com" autocomplete="off"><small>Tanpa <code>https://</code> dan path.</small></label>
-      <label>Target aplikasi<input name="target" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Loopback lokal atau <code>10.77.0.x:port</code> untuk VPS peer.</small></label>
-      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Batal</button><button class="primary" type="submit">Tambahkan rute</button></div>
+      <label>Domain<input name="host" required placeholder="app.{{.BaseDomain}} or app.other-domain.com" autocomplete="off"><small>Exclude <code>https://</code> and paths.</small></label>
+      <label>Application target<input name="target" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Use local loopback or <code>10.77.0.x:port</code> for a server peer.</small></label>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Add route</button></div>
     </form>
   </div>
 </dialog>
