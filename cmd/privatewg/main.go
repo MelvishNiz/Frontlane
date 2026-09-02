@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -24,7 +25,10 @@ import (
 //go:embed web/templates/*.html web/static/*
 var assets embed.FS
 
-var peerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
+var (
+	peerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
+	roleNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$`)
+)
 
 type config struct {
 	Listen             string
@@ -46,6 +50,7 @@ type server struct {
 	sessions map[string]session
 	attempts map[string][]time.Time
 	mu       sync.Mutex
+	applyMu  sync.Mutex
 }
 
 type session struct {
@@ -69,6 +74,8 @@ type viewData struct {
 	Peer         peer
 	PeerCreated  bool
 	ConfigStored bool
+	Roles        []role
+	Role         role
 }
 
 func main() {
@@ -138,6 +145,11 @@ func main() {
 	mux.HandleFunc("POST /services", s.auth(s.createService))
 	mux.HandleFunc("POST /services/{id}/toggle", s.auth(s.toggleService))
 	mux.HandleFunc("POST /services/{id}/delete", s.auth(s.deleteService))
+	mux.HandleFunc("GET /roles", s.auth(s.rolesPage))
+	mux.HandleFunc("POST /roles", s.auth(s.createRole))
+	mux.HandleFunc("GET /roles/{id}", s.auth(s.roleDetail))
+	mux.HandleFunc("POST /roles/{id}", s.auth(s.updateRole))
+	mux.HandleFunc("POST /roles/{id}/delete", s.auth(s.deleteRole))
 
 	h := securityHeaders(mux)
 	log.Printf("PrivateWG listening on %s; panel domain https://panel.%s", cfg.Listen, cfg.BaseDomain)
@@ -220,8 +232,11 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) peersPage(w http.ResponseWriter, r *http.Request) {
 	peers, _ := s.store.listPeers()
+	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
-	s.render(w, "peers.html", s.data(r, "Peer", peers, nil, status))
+	data := s.data(r, "Peer", peers, nil, status)
+	data.Roles = roles
+	s.render(w, "peers.html", data)
 }
 
 func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
@@ -229,10 +244,13 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
 	name := strings.TrimSpace(r.FormValue("name"))
 	kind := r.FormValue("kind")
-	if !peerNamePattern.MatchString(name) || (kind != "client" && kind != "server") {
-		s.peerError(w, r, "Invalid peer name or type.", http.StatusBadRequest)
+	roleIDs, err := parseFormIDs(r.Form["role_ids"])
+	if !peerNamePattern.MatchString(name) || (kind != "client" && kind != "server") || err != nil || len(roleIDs) == 0 {
+		s.peerError(w, r, "Invalid peer name, type, or role. Select at least one role.", http.StatusBadRequest)
 		return
 	}
 	privateKey, publicKey, err := generateKeyPair()
@@ -240,7 +258,7 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		s.peerError(w, r, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	p, err := s.store.createPeer(name, kind, publicKey)
+	p, err := s.store.createPeer(name, kind, publicKey, roleIDs)
 	if err != nil {
 		s.peerError(w, r, err.Error(), http.StatusBadRequest)
 		return
@@ -250,10 +268,18 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		s.peerError(w, r, "WireGuard rejected the new configuration: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.deletePeer(p.ID)
+		_ = s.applyWireGuard()
+		_ = s.writeRoutingFiles()
+		s.peerError(w, r, "Peer access routes could not be applied: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	clientConfig := s.clientConfig(p, privateKey)
 	if err := s.storeEncryptedConfig(p.ID, clientConfig); err != nil {
 		_ = s.store.deletePeer(p.ID)
 		_ = s.applyWireGuard()
+		_ = s.writeRoutingFiles()
 		s.peerError(w, r, "Peer configuration could not be saved: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -379,6 +405,8 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	p, err := s.store.peerByID(id)
 	if err != nil {
@@ -393,6 +421,13 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.setPeerEnabled(id, p.Enabled)
 		_ = s.applyWireGuard()
 		http.Error(w, "Peer status could not be changed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.setPeerEnabled(id, p.Enabled)
+		_ = s.applyWireGuard()
+		_ = s.writeRoutingFiles()
+		http.Error(w, "Peer access routes could not be changed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	state := "disabled"
@@ -412,10 +447,17 @@ func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	old, err := s.store.peerByID(id)
 	if err != nil {
 		http.Error(w, "Peer not found", http.StatusNotFound)
+		return
+	}
+	roleIDs, err := s.store.peerRoleIDs(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := s.store.deletePeer(id); err != nil {
@@ -423,9 +465,16 @@ func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.applyWireGuard(); err != nil {
-		_ = s.store.restorePeer(old)
+		_ = s.store.restorePeer(old, roleIDs)
 		_ = s.applyWireGuard()
 		http.Error(w, "Peer could not be deleted: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.restorePeer(old, roleIDs)
+		_ = s.applyWireGuard()
+		_ = s.writeRoutingFiles()
+		http.Error(w, "Peer access routes could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("peer.delete", old.Name+" "+old.IP, clientIP(r))
@@ -442,6 +491,8 @@ func (s *server) createService(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
 	host := strings.ToLower(strings.TrimSpace(r.FormValue("host")))
 	target := strings.TrimSpace(r.FormValue("target"))
 	if err := validateService(host, target, s.cfg.BaseDomain); err != nil {
@@ -468,6 +519,8 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	svc, err := s.store.serviceByID(id)
 	if err != nil {
@@ -497,10 +550,17 @@ func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	old, err := s.store.serviceByID(id)
 	if err != nil {
 		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+	roleIDs, err := s.store.serviceRoleIDs(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := s.store.deleteService(id); err != nil {
@@ -508,7 +568,7 @@ func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.writeRoutingFiles(); err != nil {
-		_ = s.store.restoreService(old)
+		_ = s.store.restoreService(old, roleIDs)
 		_ = s.writeRoutingFiles()
 		http.Error(w, "Service could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -517,10 +577,162 @@ func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/services?notice=Service+deleted", http.StatusSeeOther)
 }
 
+func (s *server) rolesPage(w http.ResponseWriter, r *http.Request) {
+	s.renderRoles(w, r, role{}, "", http.StatusOK)
+}
+
+func (s *server) roleDetail(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	selected, err := s.store.roleByID(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderRoles(w, r, selected, "", http.StatusOK)
+}
+
+func (s *server) createRole(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	peerIDs, serviceIDs, err := roleFormAssignments(r)
+	if !roleNamePattern.MatchString(name) || err != nil {
+		s.renderRoles(w, r, role{}, "Invalid role name or assignment.", http.StatusBadRequest)
+		return
+	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	created, err := s.store.createRole(name, peerIDs, serviceIDs)
+	if err != nil {
+		s.renderRoles(w, r, role{}, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_, _ = s.store.deleteRole(created.ID)
+		_ = s.writeRoutingFiles()
+		s.renderRoles(w, r, role{}, "Role routes could not be applied: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.store.audit("role.create", created.Name, clientIP(r))
+	http.Redirect(w, r, fmt.Sprintf("/roles/%d?notice=Role+created", created.ID), http.StatusSeeOther)
+}
+
+func (s *server) updateRole(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	peerIDs, serviceIDs, err := roleFormAssignments(r)
+	if !roleNamePattern.MatchString(name) || err != nil {
+		http.Error(w, "Invalid role name or assignment.", http.StatusBadRequest)
+		return
+	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	old, err := s.store.roleByID(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.store.replaceRole(id, name, peerIDs, serviceIDs); err != nil {
+		s.renderRoles(w, r, old, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.replaceRole(old.ID, old.Name, setIDs(old.PeerIDs), setIDs(old.ServiceIDs))
+		_ = s.writeRoutingFiles()
+		s.renderRoles(w, r, old, "Role routes could not be applied: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.store.audit("role.update", name, clientIP(r))
+	http.Redirect(w, r, fmt.Sprintf("/roles/%d?notice=Role+updated", id), http.StatusSeeOther)
+}
+
+func (s *server) deleteRole(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	old, err := s.store.deleteRole(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.restoreRole(old)
+		_ = s.writeRoutingFiles()
+		http.Error(w, "Role could not be deleted: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.store.audit("role.delete", old.Name, clientIP(r))
+	http.Redirect(w, r, "/roles?notice=Role+deleted", http.StatusSeeOther)
+}
+
+func roleFormAssignments(r *http.Request) ([]int64, []int64, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, nil, err
+	}
+	peerIDs, err := parseFormIDs(r.Form["peer_ids"])
+	if err != nil {
+		return nil, nil, err
+	}
+	serviceIDs, err := parseFormIDs(r.Form["service_ids"])
+	return peerIDs, serviceIDs, err
+}
+
+func parseFormIDs(values []string) ([]int64, error) {
+	ids := make([]int64, 0, len(values))
+	seen := map[int64]bool{}
+	for _, value := range values {
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || id < 1 {
+			return nil, errors.New("invalid assignment ID")
+		}
+		if !seen[id] {
+			ids, seen[id] = append(ids, id), true
+		}
+	}
+	return ids, nil
+}
+
+func (s *server) renderRoles(w http.ResponseWriter, r *http.Request, selected role, message string, statusCode int) {
+	roles, rolesErr := s.store.listRoles()
+	peers, peersErr := s.store.listPeers()
+	services, servicesErr := s.store.listServices()
+	if rolesErr != nil || peersErr != nil || servicesErr != nil {
+		http.Error(w, "Roles could not be loaded", http.StatusInternalServerError)
+		return
+	}
+	data := s.data(r, "Roles", peers, services, wgStatus{})
+	data.Roles, data.Role, data.Error = roles, selected, message
+	s.renderStatus(w, "roles.html", data, statusCode)
+}
+
 func (s *server) peerError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
 	peers, _ := s.store.listPeers()
+	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
 	data := s.data(r, "Peer", peers, nil, status)
+	data.Roles = roles
 	data.Error = message
 	s.renderStatus(w, "peers.html", data, statusCode)
 }

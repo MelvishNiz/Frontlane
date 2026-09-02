@@ -306,6 +306,28 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); outline: 
 .route-list > div { display: flex; gap: 13px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); }
 .route-line { min-width: 20px; height: 1px; flex: 1; background: var(--line); }
 .danger { padding: 7px 10px; color: var(--red); background: #fff; border: 1px solid #efcfd3; border-radius: 8px; cursor: pointer; }
+.roles-layout { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.role-directory, .role-editor { padding: 28px; }
+.role-list { display: grid; gap: 7px; }
+.role-list a { display: flex; justify-content: space-between; padding: 13px; color: var(--ink); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; }
+.role-list a:hover, .role-list a[aria-current="page"] { color: var(--cyan-dark); background: var(--cyan-wash); border-color: #bce5df; }
+.role-list b, .role-list small { display: block; }
+.role-list small { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.assignment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.assignment-grid fieldset { min-width: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; }
+.assignment-grid legend { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 13px; color: var(--navy); font-weight: 700; }
+.select-all { display: flex !important; width: auto; grid-template-columns: auto auto; align-items: center; gap: 7px !important; font-size: 10px !important; }
+.select-all input, .check-list input { width: 16px; min-height: 16px; padding: 0; accent-color: var(--cyan-dark); }
+.check-list { max-height: 340px; overflow: auto; border-top: 1px solid var(--line); }
+.check-list label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; padding: 11px 13px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.check-list label:last-child { border: 0; }
+.check-list b, .check-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.check-list small { margin-top: 3px; }
+.peer-role-picker { min-width: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; }
+.peer-role-picker legend { margin-left: 10px; padding: 0 6px; color: #344b5c; font-size: 12px; font-weight: 700; }
+.peer-role-picker > small { display: block; padding: 10px 13px; color: #8699a6; font-size: 10px; }
+.peer-role-picker .check-list { max-height: 180px; }
+.primary:disabled { cursor: not-allowed; filter: grayscale(.6); opacity: .55; transform: none; }
 .alert { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 0 0 20px; padding: 14px 17px; border: 1px solid; border-radius: 13px; font-size: 12px; }
 .alert b { grid-row: 1; }
 .alert span { color: inherit; opacity: 0.8; }
@@ -344,7 +366,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); outline: 
   .topbar { align-items: flex-start; }
   .topbar-actions { align-items: flex-start; }
   .identity { display: none; }
-  .workspace-grid, .split, .form-layout { grid-template-columns: 1fr; }
+  .workspace-grid, .split, .form-layout, .roles-layout { grid-template-columns: 1fr; }
   .create-card, .sticky-panel { position: static; }
   .peer-main { grid-template-columns: auto minmax(100px, 1fr) 85px auto; }
   .peer-state, .traffic, .config-state { display: none; }
@@ -386,6 +408,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); outline: 
   .dns-note small { font-size: 10px; }
   .dialog-card { padding: 24px 20px; border-radius: 18px; }
   .dialog-actions > * { flex: 1; }
+  .assignment-grid { grid-template-columns: 1fr; }
+  .role-directory, .role-editor { padding: 21px; }
   .peer-main { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
   .peer-main code { display: none; }
   .peer-row { grid-template-columns: minmax(0, 1fr) auto; }

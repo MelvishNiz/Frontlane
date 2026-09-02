@@ -57,7 +57,8 @@
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <label>Peer name<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="laptop" autocomplete="off"><small>Letters, numbers, dots, underscores, or hyphens.</small></label>
       <label>Device type<select name="kind"><option value="client">Client — laptop / phone</option><option value="server">Server — application host</option></select></label>
-      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Create peer</button></div>
+      <fieldset class="peer-role-picker"><legend>Access roles</legend><div class="check-list">{{range .Roles}}<label><input type="checkbox" name="role_ids" value="{{.ID}}"><span><b>{{.Name}}</b><small>{{len .ServiceIDs}} allowed domains</small></span></label>{{else}}<p class="empty">Create a role before adding a peer.</p>{{end}}</div><small>Select at least one role. A peer can belong to multiple roles.</small></fieldset>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit" {{if not .Roles}}disabled{{end}}>Create peer</button></div>
     </form>
   </div>
 </dialog>

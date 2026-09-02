@@ -1,0 +1,29 @@
+{{template "header" .}}
+<section class="roles-layout">
+  <aside class="panel role-directory">
+    <div class="panel-head"><div><p class="eyebrow">ACCESS GROUPS</p><h2>Roles</h2><p class="muted">Peers reach domains only through a shared role.</p></div><span class="count-badge"><b>{{len .Roles}}</b><small>roles</small></span></div>
+    <div class="role-list">
+      {{range .Roles}}<a href="/roles/{{.ID}}" {{if eq .ID $.Role.ID}}aria-current="page"{{end}}><span><b>{{.Name}}</b><small>{{len .PeerIDs}} peers · {{len .ServiceIDs}} domains</small></span><span>›</span></a>{{else}}<p class="empty">No roles yet.</p>{{end}}
+    </div>
+  </aside>
+
+  <section class="panel role-editor">
+    <div class="panel-head"><div><p class="eyebrow">{{if .Role.ID}}EDIT ACCESS ROLE{{else}}NEW ACCESS ROLE{{end}}</p><h2>{{if .Role.ID}}{{.Role.Name}}{{else}}Create role{{end}}</h2><p class="muted">Select peers and domains. Empty assignments deny access.</p></div>{{if .Role.ID}}<form method="post" action="/roles/{{.Role.ID}}/delete" data-confirm="Delete role {{.Role.Name}}? Its access grants will be revoked immediately."><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="danger" type="submit">Delete role</button></form>{{end}}</div>
+    <form method="post" action="{{if .Role.ID}}/roles/{{.Role.ID}}{{else}}/roles{{end}}" class="stack-form role-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Role name<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}" value="{{.Role.Name}}" required placeholder="Engineering" autocomplete="off"><small><code>All</code> is the upgrade compatibility role; it remains fully editable.</small></label>
+      <div class="assignment-grid">
+        <fieldset data-select-group>
+          <legend><span>Peers</span><label class="select-all"><input type="checkbox" data-select-all> Select all</label></legend>
+          <div class="check-list">{{range .Peers}}<label><input type="checkbox" name="peer_ids" value="{{.ID}}" {{if index $.Role.PeerIDs .ID}}checked{{end}}><span><b>{{.Name}}</b><small>{{.IP}} · {{.Kind}}{{if not .Enabled}} · paused{{end}}</small></span></label>{{else}}<p class="empty">No peers available.</p>{{end}}</div>
+        </fieldset>
+        <fieldset data-select-group>
+          <legend><span>Domains</span><label class="select-all"><input type="checkbox" data-select-all> Select all</label></legend>
+          <div class="check-list">{{range .Services}}<label><input type="checkbox" name="service_ids" value="{{.ID}}" {{if index $.Role.ServiceIDs .ID}}checked{{end}}><span><b>{{.Host}}</b><small>{{.Target}}{{if not .Enabled}} · paused{{end}}</small></span></label>{{else}}<p class="empty">No domains available.</p>{{end}}</div>
+        </fieldset>
+      </div>
+      <div class="dialog-actions">{{if .Role.ID}}<a class="secondary" href="/roles">New role</a>{{end}}<button class="primary" type="submit">{{if .Role.ID}}Save assignments{{else}}Create role{{end}}</button></div>
+    </form>
+  </section>
+</section>
+{{template "footer" .}}

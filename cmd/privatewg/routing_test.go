@@ -36,7 +36,8 @@ func TestBuildRoutingConfigs(t *testing.T) {
 	proxy, hosts, err := buildRoutingConfigs(config{BaseDomain: "example.com"}, []service{
 		{ID: 1, Host: "active.example.com", Target: "10.77.0.20:80", Enabled: true},
 		{ID: 2, Host: "paused.example.com", Target: "10.77.0.21:80", Enabled: false},
-	})
+		{ID: 3, Host: "denied.example.com", Target: "10.77.0.22:80", Enabled: true},
+	}, map[int64][]string{1: {"10.77.0.2/32", "10.77.0.4/32"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,15 +56,15 @@ func TestBuildRoutingConfigs(t *testing.T) {
 		t.Fatalf("panel auth = %#v", got)
 	}
 	active := cfg.HTTP.Routers["service-1"]
-	if active.Service != "service-1" || strings.Join(active.Middlewares, ",") != "service-errors,vpn-only,retry-upstream" {
+	if active.Service != "service-1" || strings.Join(active.Middlewares, ",") != "service-errors,service-1-access,retry-upstream" {
 		t.Fatalf("active router = %#v", active)
 	}
 	if got := cfg.HTTP.Services["service-1"].LoadBalancer.Servers[0].URL; got != "http://10.77.0.20:80" {
 		t.Fatalf("active upstream = %q", got)
 	}
-	allowlist := cfg.HTTP.Middlewares["vpn-only"].IPAllowList
-	if len(allowlist.SourceRange) != 1 || allowlist.SourceRange[0] != "10.77.0.0/24" || allowlist.RejectStatusCode != 418 {
-		t.Fatalf("VPN allowlist = %#v", allowlist)
+	allowlist := cfg.HTTP.Middlewares["service-1-access"].IPAllowList
+	if strings.Join(allowlist.SourceRange, ",") != "10.77.0.2/32,10.77.0.4/32" || allowlist.RejectStatusCode != 418 {
+		t.Fatalf("role allowlist = %#v", allowlist)
 	}
 	errors := cfg.HTTP.Middlewares["service-errors"].Errors
 	if strings.Join(errors.Status, ",") != "418,502,504" || errors.StatusRewrites["418"] != http.StatusForbidden {
@@ -83,6 +84,16 @@ func TestBuildRoutingConfigs(t *testing.T) {
 	}
 	if _, exists := cfg.HTTP.Services["service-2"]; exists {
 		t.Fatal("paused service must not proxy to its upstream")
+	}
+	denied := cfg.HTTP.Routers["service-3"]
+	if denied.Service != "privatewg-errors" || strings.Join(denied.Middlewares, ",") != "denied-route" {
+		t.Fatalf("denied router = %#v", denied)
+	}
+	if _, exists := cfg.HTTP.Services["service-3"]; exists {
+		t.Fatal("unauthorized service must not proxy to its upstream")
+	}
+	if cfg.HTTP.Middlewares["denied-route"].ReplacePath.Path != "/__privatewg/errors/403" {
+		t.Fatal("unauthorized service must route to 403")
 	}
 	if !strings.Contains(string(hosts), "10.77.0.1 paused.example.com") {
 		t.Fatal("paused service must remain resolvable for its error page")
@@ -129,7 +140,7 @@ func TestRouteErrorPage(t *testing.T) {
 		status int
 		want   string
 	}{
-		{http.StatusForbidden, "VPN required"},
+		{http.StatusForbidden, "Access denied"},
 		{http.StatusBadGateway, "Application unreachable"},
 		{http.StatusServiceUnavailable, "Route paused"},
 	} {

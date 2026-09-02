@@ -56,7 +56,25 @@ func (s *server) ensureBootstrapPeer() error {
 	if err != nil {
 		return err
 	}
-	p, err := s.store.createPeer("bootstrap-admin", "client", publicKey)
+	roles, err := s.store.listRoles()
+	if err != nil {
+		return err
+	}
+	var roleIDs []int64
+	for _, r := range roles {
+		if r.Name == "All" {
+			roleIDs = []int64{r.ID}
+			break
+		}
+	}
+	if len(roleIDs) == 0 {
+		r, err := s.store.createRole("All", nil, nil)
+		if err != nil {
+			return err
+		}
+		roleIDs = []int64{r.ID}
+	}
+	p, err := s.store.createPeer("bootstrap-admin", "client", publicKey, roleIDs)
 	if err != nil {
 		return err
 	}

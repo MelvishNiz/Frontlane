@@ -17,6 +17,10 @@ table inet privatewg {
     iifname "wg0" udp dport 53 accept
     iifname "wg0" tcp dport { 53, 8080 } accept
   }
+  chain forward {
+    type filter hook forward priority 0; policy accept;
+    iifname "wg0" oifname "wg0" drop
+  }
 }
 RULES
 

@@ -56,7 +56,7 @@ func TestEnabledStateRoundTrip(t *testing.T) {
 	}
 	defer st.Close()
 
-	p, err := st.createPeer("phone", "client", "public-key")
+	p, err := st.createPeer("phone", "client", "public-key", []int64{testRoleID(t, st, "All")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestLastHandshakePersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	p, err := st.createPeer("phone", "client", "public-key")
+	p, err := st.createPeer("phone", "client", "public-key", []int64{testRoleID(t, st, "All")})
 	if err != nil {
 		t.Fatal(err)
 	}

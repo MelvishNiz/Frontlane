@@ -139,7 +139,11 @@ func (s *server) writeRoutingFiles() error {
 	if err != nil {
 		return err
 	}
-	proxy, hosts, err := buildRoutingConfigs(s.cfg, services)
+	allowed, err := s.store.allowedServiceIPs()
+	if err != nil {
+		return err
+	}
+	proxy, hosts, err := buildRoutingConfigs(s.cfg, services, allowed)
 	if err != nil {
 		return err
 	}
@@ -149,7 +153,7 @@ func (s *server) writeRoutingFiles() error {
 	return atomicWrite(s.cfg.CoreDNSHosts, hosts, 0644)
 }
 
-func buildRoutingConfigs(cfg config, services []service) ([]byte, []byte, error) {
+func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]string) ([]byte, []byte, error) {
 	falseValue := false
 	httpConfig := traefikHTTP{
 		Routers: map[string]traefikRouter{
@@ -176,9 +180,6 @@ func buildRoutingConfigs(cfg config, services []service) ([]byte, []byte, error)
 					PreserveLocationHeader: true,
 				},
 			},
-			"vpn-only": {
-				IPAllowList: &traefikIPAllowList{SourceRange: []string{"10.77.0.0/24"}, RejectStatusCode: 418},
-			},
 			"retry-upstream": {
 				Retry: &traefikRetry{Attempts: 16, InitialInterval: "500ms", Timeout: "8s", Status: []string{"502", "504"}},
 			},
@@ -193,6 +194,9 @@ func buildRoutingConfigs(cfg config, services []service) ([]byte, []byte, error)
 			},
 			"paused-route": {
 				ReplacePath: &traefikReplacePath{Path: "/__privatewg/errors/503"},
+			},
+			"denied-route": {
+				ReplacePath: &traefikReplacePath{Path: "/__privatewg/errors/403"},
 			},
 		},
 		Services: map[string]traefikService{
@@ -226,13 +230,20 @@ func buildRoutingConfigs(cfg config, services []service) ([]byte, []byte, error)
 			TLS:         traefikTLS{CertResolver: "letsencrypt"},
 		}
 		if svc.Enabled {
-			router.Service = name
-			router.Middlewares = []string{"service-errors", "vpn-only", "retry-upstream"}
-			httpConfig.Services[name] = traefikService{
-				LoadBalancer: traefikLoadBalancer{
-					Servers:          []traefikServer{{URL: "http://" + svc.Target}},
-					ServersTransport: "privatewg-upstream",
-				},
+			if sourceRange := allowed[svc.ID]; len(sourceRange) > 0 {
+				allowlistName := name + "-access"
+				httpConfig.Middlewares[allowlistName] = traefikMiddleware{IPAllowList: &traefikIPAllowList{SourceRange: sourceRange, RejectStatusCode: 418}}
+				router.Service = name
+				router.Middlewares = []string{"service-errors", allowlistName, "retry-upstream"}
+				httpConfig.Services[name] = traefikService{
+					LoadBalancer: traefikLoadBalancer{
+						Servers:          []traefikServer{{URL: "http://" + svc.Target}},
+						ServersTransport: "privatewg-upstream",
+					},
+				}
+			} else {
+				router.Service = "privatewg-errors"
+				router.Middlewares = []string{"denied-route"}
 			}
 		} else {
 			router.Service = "privatewg-errors"
@@ -266,9 +277,9 @@ func routeErrorPage(w http.ResponseWriter, r *http.Request) {
 	message := "The tunnel is active, but the application server is not responding. Check the peer and service on the target server."
 	switch status {
 	case http.StatusForbidden:
-		title = "VPN required"
-		label = "PRIVATE NETWORK"
-		message = "Connect this device to WireGuard, then reload the page."
+		title = "Access denied"
+		label = "ROLE REQUIRED"
+		message = "This device is not authorized for this domain. Connect an enabled WireGuard peer with a shared role."
 	case http.StatusServiceUnavailable:
 		title = "Route paused"
 		label = "ROUTE PAUSED"

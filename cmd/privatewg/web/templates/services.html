@@ -14,7 +14,7 @@
 
   <aside class="dns-note">
     <span class="dns-note-icon">DNS</span>
-    <p><b>External domains are supported.</b><small>Point the domain's public DNS A/AAAA record to this server. Traefik issues TLS certificates automatically; application access remains limited to <code>10.77.0.0/24</code>.</small></p>
+    <p><b>External domains are supported.</b><small>Point the domain's public DNS A/AAAA record to this server. Traefik issues TLS certificates automatically; access requires an enabled peer sharing a role with the domain.</small></p>
   </aside>
 
   {{if .Services}}

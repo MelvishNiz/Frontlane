@@ -45,6 +45,18 @@ document.querySelectorAll("dialog").forEach((dialog) => {
 
 document.querySelector("dialog[data-open-on-error]")?.showModal();
 
+document.querySelectorAll("[data-select-group]").forEach((group) => {
+  const all = group.querySelector("[data-select-all]");
+  const items = [...group.querySelectorAll('input[type="checkbox"]:not([data-select-all])')];
+  const sync = () => {
+    all.checked = items.length > 0 && items.every((item) => item.checked);
+    all.indeterminate = items.some((item) => item.checked) && !all.checked;
+  };
+  all?.addEventListener("change", () => { items.forEach((item) => { item.checked = all.checked; }); });
+  items.forEach((item) => { item.addEventListener("change", sync); });
+  sync();
+});
+
 const peerRows = [...document.querySelectorAll("[data-peer-id]")];
 const relativeTime = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
