@@ -48,6 +48,7 @@ document.addEventListener("submit", (event) => {
   }
   event.preventDefault();
   pendingForm = form;
+  form.closest(".account-menu")?.removeAttribute("open");
   const dialog = document.getElementById("confirm-dialog");
   dialog.querySelector("#confirm-title").textContent = form.dataset.confirmTitle || "Confirm this change?";
   dialog.querySelector("#confirm-message").textContent = message;
@@ -84,6 +85,9 @@ document.addEventListener("click", async (event) => {
     dismissToast(toastClose.closest("[data-toast]"));
     return;
   }
+
+  const accountMenu = document.querySelector(".account-menu[open]");
+  if (accountMenu && !accountMenu.contains(event.target)) accountMenu.removeAttribute("open");
 
   const button = event.target.closest("[data-copy-target]");
   if (!button) return;

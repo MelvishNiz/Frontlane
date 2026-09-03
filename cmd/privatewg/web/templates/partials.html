@@ -29,6 +29,9 @@
   <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.1 3.41 9.86 8 11 4.59-1.14 8-5.9 8-11V5l-8-3Zm0 17.9C8.52 18.8 6 15.13 6 11V6.38l6-2.25 6 2.25V11c0 4.13-2.52 7.8-6 8.9Z"/></symbol>
   <symbol id="icon-check" viewBox="0 0 24 24"><path d="m9 16.2-4.2-4.2-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></symbol>
   <symbol id="icon-warning" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21Zm12-3h-2v-2h2v2Zm0-4h-2v-4h2v4Z"/></symbol>
+  <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5Zm9-14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6v-2h6V5h-6V3h6Z"/></symbol>
+  <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m7.41 8.59 4.59 4.58 4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z"/></symbol>
+  <symbol id="icon-traefik" viewBox="0 0 24 24"><path d="M12 1.19c1.088 0 2.056.768 2.056 1.714 0 .947-.921 1.715-2.056 1.715-.13 0-.3-.022-.509-.064a.685.685 0 0 0-.475.076l-7.37 4.195a.344.344 0 0 0 .001.597l7.99 4.49c.208.116.461.116.669 0l8.034-4.468a.343.343 0 0 0 .003-.598l-2.507-1.424a.683.683 0 0 0-.67-.003l-2.647 1.468a.234.234 0 0 0-.119.18l-.001.025c0 .946-.921 1.714-2.056 1.714s-2.056-.768-2.056-1.714c0-.947.921-1.715 2.056-1.715.042 0 .09.002.145.007l.087.008.096.013a.685.685 0 0 0 .425-.08l3.913-2.173c.3-.166.662-.171.965-.017l.04.023 5.465 3.104c.686.39.693 1.368.03 1.773l-.037.021-3.656 2.033a.343.343 0 0 0 .007.604l3.62 1.906c.72.378.736 1.402.03 1.804l-10.995 6.272a1.03 1.03 0 0 1-1.019 0L.526 16.43a1.03 1.03 0 0 1 .034-1.806l3.66-1.911a.343.343 0 0 0 .01-.603L.524 10.029a1.03 1.03 0 0 1-.041-1.77l.036-.021L9.618 3.06a.688.688 0 0 0 .308-.369l.011-.036c.32-.952 1.046-1.466 2.063-1.466Zm5.076 12.63-4.492 2.586-.041.022c-.306.158-.671.152-.973-.018l-4.478-2.527a.682.682 0 0 0-.65-.01L3.86 15.224a.343.343 0 0 0-.012.602l7.887 4.515c.21.12.467.121.677 0l7.956-4.547a.343.343 0 0 0-.01-.602l-2.623-1.384a.683.683 0 0 0-.659.012Z"/></symbol>
 </svg>
 <div class="app-shell">
   <aside class="rail">
@@ -48,17 +51,24 @@
         <a href="/roles" {{if eq .Section "access"}}aria-current="page"{{end}}><span class="nav-icon"><svg><use href="#icon-roles"></use></svg></span><span><b>Accesses</b><small>Route grants</small></span></a>
       </div>
     </nav>
-    <div class="rail-foot">
-      <div class="avatar">{{initial .User}}</div><span>{{.User}}</span>
-      <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link-button" type="submit">Sign out</button></form>
+    <div class="rail-utility">
+      <a class="traefik-button" href="/traefik/dashboard/" target="_blank" rel="noopener">
+        <span class="traefik-mark"><svg aria-hidden="true"><use href="#icon-traefik"></use></svg></span>
+        <span><b>Traefik</b><small>Proxy dashboard</small></span>
+        <svg aria-hidden="true"><use href="#icon-open"></use></svg>
+      </a>
     </div>
   </aside>
   <main>
     <header class="topbar">
       <div><p class="eyebrow">FRONTLANE / {{if eq .Section "routes"}}ROUTES{{else if eq .Section "endpoints"}}VPN CONNECTIONS{{else if eq .Section "access"}}ACCESS{{else}}OVERVIEW{{end}}</p><h1>{{.Title}}</h1></div>
-      <div class="topbar-actions">
-        <a class="traefik-button" href="/traefik/dashboard/" target="_blank" rel="noopener"><span class="traefik-mark">T</span><span>Traefik</span><svg><use href="#icon-open"></use></svg></a>
-      </div>
+      <details class="account-menu">
+        <summary aria-label="Open account menu"><span class="avatar">{{initial .User}}</span><span class="account-name"><small>Signed in as</small><b>{{.User}}</b></span><svg aria-hidden="true"><use href="#icon-chevron"></use></svg></summary>
+        <div class="account-dropdown">
+          <div><span class="avatar">{{initial .User}}</span><span><small>ACCOUNT</small><b>{{.User}}</b></span></div>
+          <form method="post" action="/logout" data-confirm="You will need to sign in again to manage this gateway." data-confirm-title="Sign out of Frontlane?" data-confirm-action="Sign out"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="logout-button" type="submit"><svg aria-hidden="true"><use href="#icon-logout"></use></svg><span>Sign out</span></button></form>
+        </div>
+      </details>
     </header>
     <div class="toast-stack" aria-live="polite" aria-atomic="true">
       {{if .Error}}<div class="toast is-error" role="alert" data-toast><svg><use href="#icon-warning"></use></svg><span><b>Action failed</b><small>{{.Error}}</small></span><button type="button" data-toast-close aria-label="Dismiss notification"><svg><use href="#icon-close"></use></svg></button></div>{{end}}

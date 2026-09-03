@@ -319,8 +319,8 @@ func TestRolesTemplate(t *testing.T) {
 	if !strings.Contains(output, `href="/roles" aria-current="page"`) || !strings.Contains(output, `id="confirm-dialog"`) || strings.Contains(output, `class="identity"`) {
 		t.Fatal("access navigation must be active, hide gateway identity, and include the shared confirmation dialog")
 	}
-	if !strings.Contains(output, `class="resource-header access-columns"`) || !strings.Contains(output, `id="access-edit-1"`) || !strings.Contains(output, `data-dialog-open="access-edit-1"><svg aria-hidden="true"><use href="#icon-edit"></use></svg> Edit`) || strings.Contains(output, `name="peer_ids"`) || strings.Contains(output, `class="directory-count"`) || !strings.Contains(output, `<span>Traefik</span>`) {
-		t.Fatal("access page must use a table, icon edit action, modal CRUD, route-only assignments, no counter, and Traefik label")
+	if !strings.Contains(output, `class="resource-header access-columns"`) || !strings.Contains(output, `id="access-edit-1"`) || !strings.Contains(output, `data-dialog-open="access-edit-1"><svg aria-hidden="true"><use href="#icon-edit"></use></svg> Edit`) || strings.Contains(output, `name="peer_ids"`) || strings.Contains(output, `class="directory-count"`) || !strings.Contains(output, `href="#icon-traefik"`) || !strings.Contains(output, `<b>Traefik</b>`) || !strings.Contains(output, `class="account-menu"`) || !strings.Contains(output, `data-confirm-title="Sign out of Frontlane?"`) {
+		t.Fatal("access page must use a table, modal CRUD, route-only assignments, the Traefik sidebar action, and confirmed account logout")
 	}
 	data.Role = role{}
 	if err := tpl.ExecuteTemplate(io.Discard, "access.html", data); err != nil {

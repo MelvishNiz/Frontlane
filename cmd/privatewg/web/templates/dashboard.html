@@ -32,7 +32,6 @@
       <div><span class="health-check {{if not .Services}}is-idle{{end}}"><svg aria-hidden="true"><use href="{{if .Services}}#icon-check{{else}}#icon-warning{{end}}"></use></svg></span><span><b>Application delivery</b><small>{{if .Services}}{{len .Services}} routes configured{{else}}No routes configured{{end}}</small></span></div>
       <div><span class="health-check {{if not .WG.PeerCount}}is-idle{{end}}"><svg aria-hidden="true"><use href="{{if .WG.PeerCount}}#icon-check{{else}}#icon-warning{{end}}"></use></svg></span><span><b>Private access</b><small>{{if .WG.PeerCount}}{{.WG.PeerCount}} VPN connections enrolled{{else}}No VPN connections enrolled{{end}}</small></span></div>
     </div>
-    <a class="health-link" href="/traefik/dashboard/" target="_blank" rel="noopener">Open Traefik diagnostics <svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
   </section>
 
   <section class="panel overview-peers">

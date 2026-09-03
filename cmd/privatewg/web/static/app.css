@@ -90,20 +90,41 @@ code, .mono, .eyebrow, .nav-label, .metric-index { font-family: "SFMono-Regular"
 .nav-icon { display: grid; width: 29px; height: 29px; flex: none; place-items: center; color: #76cabe; background: rgba(49, 184, 159, .1); border-radius: 8px; }
 .rail nav a[aria-current="page"] .nav-icon { color: white; background: var(--signal); }
 .nav-icon svg { width: 15px; height: 15px; }
-.rail-foot { position: relative; z-index: 1; display: grid; grid-template-columns: auto 1fr auto; gap: 9px; align-items: center; margin-top: auto; padding: 7px 3px; color: #97b0b2; font-size: 12px; }
-.avatar { display: grid; width: 29px; height: 29px; place-items: center; color: var(--pine); background: #c4e8e2; border-radius: 8px; font-weight: 800; text-transform: uppercase; }
-.link-button { padding: 6px; color: #759496; background: none; border: 0; cursor: pointer; }
-.link-button:hover { color: white; }
+.rail-utility { position: relative; z-index: 1; display: grid; gap: 9px; margin-top: auto; }
+.traefik-button { display: grid; grid-template-columns: auto 1fr auto; gap: 11px; align-items: center; padding: 10px; color: #a8c7d2; background: rgba(3, 20, 48, .3); border: 1px solid rgba(255, 255, 255, .09); border-radius: 13px; text-decoration: none; transition: 160ms ease; }
+.traefik-button > span:nth-child(2) { display: grid; }
+.traefik-button b { color: #e7f5ff; font-size: 12px; }
+.traefik-button small { margin-top: 2px; color: #789ca7; font-size: 8px; }
+.traefik-button > svg { width: 12px; height: 12px; color: #6e93a1; }
+.traefik-mark { display: grid; width: 34px; height: 34px; place-items: center; color: #24a1c1; background: #e6f9fd; border-radius: 10px; box-shadow: 0 7px 18px rgba(36, 161, 193, .16); }
+.traefik-mark svg { width: 19px; height: 19px; }
+.traefik-button:hover, .traefik-button:focus-visible { color: white; background: rgba(36, 161, 193, .13); border-color: rgba(81, 195, 222, .4); outline: none; transform: translateY(-1px); }
+.avatar { display: grid; width: 34px; height: 34px; flex: none; place-items: center; color: #07355d; background: linear-gradient(145deg, #d9f5f1, #8bd8d0); border: 1px solid rgba(255, 255, 255, .8); border-radius: 10px; box-shadow: 0 7px 18px rgba(11, 40, 88, .14); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.account-menu { position: relative; z-index: 20; flex: none; }
+.account-menu summary { display: flex; gap: 10px; align-items: center; min-width: 158px; padding: 6px 8px 6px 6px; color: var(--muted); background: rgba(255, 255, 255, .82); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: 0 8px 24px rgba(11, 40, 88, .07); cursor: pointer; list-style: none; transition: 160ms ease; }
+.account-menu summary::-webkit-details-marker { display: none; }
+.account-menu summary:hover, .account-menu summary:focus-visible, .account-menu[open] summary { color: var(--pine); background: white; border-color: #a9c6e7; outline: none; }
+.account-menu summary > svg { width: 14px; height: 14px; margin-left: auto; color: #7b91aa; transition: transform 160ms ease; }
+.account-menu[open] summary > svg { transform: rotate(180deg); }
+.account-name { display: grid; min-width: 0; text-align: left; }
+.account-name b { overflow: hidden; color: var(--pine); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.account-name small { margin: 0 0 2px; color: #7890aa; font: 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.account-dropdown { position: absolute; top: calc(100% + 9px); right: 0; width: 230px; padding: 8px; background: rgba(255, 255, 255, .98); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 50px rgba(11, 40, 88, .18); }
+.account-dropdown::before { position: absolute; top: -5px; right: 22px; width: 9px; height: 9px; content: ""; background: white; border-top: 1px solid var(--line); border-left: 1px solid var(--line); transform: rotate(45deg); }
+.account-dropdown > div { display: flex; gap: 10px; align-items: center; padding: 8px 8px 12px; border-bottom: 1px solid var(--line); }
+.account-dropdown > div > span:last-child { display: grid; min-width: 0; }
+.account-dropdown small { color: #7890aa; font: 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; }
+.account-dropdown b { margin-top: 3px; overflow: hidden; color: var(--pine); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.account-dropdown form { padding-top: 7px; }
+.logout-button { display: flex; width: 100%; gap: 8px; align-items: center; min-height: 36px; padding: 0 10px; color: #9b4050; background: transparent; border: 0; border-radius: 9px; font-size: 10px; font-weight: 750; cursor: pointer; transition: 160ms ease; }
+.logout-button svg { width: 14px; height: 14px; }
+.logout-button:hover, .logout-button:focus-visible { color: #892f3e; background: #fff0f2; outline: none; }
 
 main { grid-column: 2; width: 100%; max-width: 1680px; padding: 35px clamp(24px, 4.8vw, 72px) 70px; }
 .topbar { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 29px; }
-.topbar-actions { display: flex; gap: 13px; align-items: center; }
+.topbar > div { min-width: 0; }
 .eyebrow { margin: 0 0 8px; color: #596f72; font-size: 9px; font-weight: 700; letter-spacing: .18em; }
 .topbar h1 { margin: 0; color: var(--pine); font-family: "Avenir Next", "Segoe UI Variable", sans-serif; font-size: clamp(34px, 4vw, 49px); font-weight: 500; line-height: .98; letter-spacing: -.045em; }
-.traefik-button { display: inline-flex; gap: 8px; align-items: center; padding: 7px 10px 7px 7px; color: #385b60; background: rgba(255, 255, 255, .82); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 7px 20px rgba(16, 47, 52, .05); font-size: 11px; font-weight: 700; text-decoration: none; transition: 160ms ease; }
-.traefik-button:hover, .traefik-button:focus-visible { color: var(--signal-dark); background: white; border-color: #8cb9f8; outline: 3px solid rgba(47, 125, 246, .12); transform: translateY(-1px); }
-.traefik-button > svg { width: 14px; height: 14px; color: #789093; }
-.traefik-mark { display: grid; width: 26px; height: 26px; place-items: center; color: white; background: #24a1c1; border-radius: 7px; font: 800 12px "SFMono-Regular", Consolas, monospace; }
 
 .panel, .directory-shell { background: var(--surface); border: 1px solid rgba(189, 206, 209, .78); border-radius: var(--radius); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
 .panel h2, .directory-toolbar h2, .dialog-card h2 { margin: 0; color: var(--pine); font-family: "Avenir Next", "Segoe UI Variable", sans-serif; font-size: 25px; font-weight: 500; letter-spacing: -.03em; }
@@ -381,8 +402,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--signal); outline
 .health-check svg { width: 14px; height: 14px; }
 .health-check.is-idle { color: #8b631f; background: #fff3dd; }
 .health-check.is-offline { color: var(--red); background: #fff0f2; }
-.health-link { display: inline-flex; gap: 6px; align-items: center; margin-top: 14px; color: var(--signal-dark); font-size: 10px; font-weight: 750; text-decoration: none; }
-.health-link svg { width: 11px; height: 11px; }
 .overview-peers { grid-column: 2; }
 .overview-peers .peer-state { justify-self: end; }
 .overview-peers .peer-state b { color: #71859d; font-family: "SFMono-Regular", Consolas, monospace; font-size: 8px; }
@@ -413,14 +432,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--signal); outline
 @media (max-width: 930px) {
   .app-shell { display: block; }
   .rail { position: static; width: 100%; min-height: auto; padding: 14px 17px 10px; }
-  .rail::after, .rail-foot, .nav-label, .rail nav a small { display: none; }
+  .rail::after, .nav-label, .rail nav a small { display: none; }
   .rail nav { display: flex; gap: 5px; margin-top: 14px; overflow-x: auto; }
   .nav-group { display: flex; gap: 5px; }
   .rail nav a { min-width: max-content; padding: 8px 10px; }
   .rail nav a[aria-current="page"] { box-shadow: inset 0 -3px var(--signal); }
   .nav-icon { width: 23px; height: 23px; }
+  .rail-utility { margin-top: 10px; }
+  .traefik-button { padding: 8px; }
   main { display: block; padding: 28px 18px 58px; }
-  .topbar { align-items: flex-start; }
+  .topbar { gap: 18px; align-items: flex-start; }
   .overview-hero, .overview-grid { grid-template-columns: 1fr; }
   .overview-actions { border-top: 1px solid rgba(255, 255, 255, .1); border-left: 0; }
   .overview-routes { grid-row: auto; }
@@ -439,6 +460,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--signal); outline
 
 @media (max-width: 650px) {
   .topbar h1 { font-size: 35px; }
+  .account-menu summary { min-width: auto; padding: 5px; }
+  .account-menu summary .account-name { display: none; }
+  .account-menu summary > svg { margin-left: 0; }
   .overview-status { padding: 29px 23px; }
   .status-heading { gap: 12px; }
   .status-heading h2 { font-size: 31px; }
@@ -446,8 +470,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--signal); outline
   .overview-actions { padding: 22px 23px; }
   .overview-metrics { grid-template-columns: 1fr; }
   .overview-grid > .panel { padding: 20px; }
-  .traefik-button > span:nth-child(2) { display: none; }
-  .traefik-button { padding-right: 7px; }
   .credential-grid > .panel { padding: 20px; }
   .directory-shell { border-radius: 15px; }
   .directory-toolbar { display: grid; padding: 21px 18px 17px; }
