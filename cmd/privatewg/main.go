@@ -76,6 +76,9 @@ type viewData struct {
 	ConfigStored bool
 	Roles        []role
 	Role         role
+	FormHost     string
+	FormTarget   string
+	FormAccess   string
 }
 
 func main() {
@@ -144,6 +147,7 @@ func main() {
 	mux.HandleFunc("GET /services", s.auth(s.servicesPage))
 	mux.HandleFunc("POST /services", s.auth(s.createService))
 	mux.HandleFunc("POST /services/{id}/toggle", s.auth(s.toggleService))
+	mux.HandleFunc("POST /services/{id}/access", s.auth(s.setServiceAccess))
 	mux.HandleFunc("POST /services/{id}/delete", s.auth(s.deleteService))
 	mux.HandleFunc("GET /roles", s.auth(s.rolesPage))
 	mux.HandleFunc("POST /roles", s.auth(s.createRole))
@@ -152,7 +156,7 @@ func main() {
 	mux.HandleFunc("POST /roles/{id}/delete", s.auth(s.deleteRole))
 
 	h := securityHeaders(mux)
-	log.Printf("PrivateWG listening on %s; panel domain https://panel.%s", cfg.Listen, cfg.BaseDomain)
+	log.Printf("Frontlane listening on %s; panel domain https://panel.%s", cfg.Listen, cfg.BaseDomain)
 	if err := http.ListenAndServe(cfg.Listen, h); err != nil {
 		log.Fatal(err)
 	}
@@ -234,7 +238,7 @@ func (s *server) peersPage(w http.ResponseWriter, r *http.Request) {
 	peers, _ := s.store.listPeers()
 	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
-	data := s.data(r, "Peer", peers, nil, status)
+	data := s.data(r, "Network", peers, nil, status)
 	data.Roles = roles
 	s.render(w, "peers.html", data)
 }
@@ -310,7 +314,7 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data := s.data(r, "Peer details", peers, nil, status)
+	data := s.data(r, "Network peer", peers, nil, status)
 	data.Peer = *selected
 	data.PeerCreated = r.URL.Query().Get("created") == "1"
 	data.ConfigStored = selected.HasConfig
@@ -483,7 +487,7 @@ func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	services, _ := s.store.listServices()
-	s.render(w, "services.html", s.data(r, "Domains & services", nil, services, wgStatus{}))
+	s.render(w, "services.html", s.data(r, "Application routes", nil, services, wgStatus{}))
 }
 
 func (s *server) createService(w http.ResponseWriter, r *http.Request) {
@@ -495,11 +499,26 @@ func (s *server) createService(w http.ResponseWriter, r *http.Request) {
 	defer s.applyMu.Unlock()
 	host := strings.ToLower(strings.TrimSpace(r.FormValue("host")))
 	target := strings.TrimSpace(r.FormValue("target"))
+	access := r.FormValue("access")
+	if access == "" {
+		access = "private"
+	}
+	if access != "private" && access != "public" {
+		s.serviceError(w, r, "Access must be private or public.", http.StatusBadRequest)
+		return
+	}
 	if err := validateService(host, target, s.cfg.BaseDomain); err != nil {
 		s.serviceError(w, r, err.Error(), http.StatusBadRequest)
 		return
 	}
-	svc, err := s.store.createService(host, target)
+	public := access == "public"
+	if public {
+		if err := validatePublicTarget(target, s.cfg.Listen); err != nil {
+			s.serviceError(w, r, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	svc, err := s.store.createService(host, target, public)
 	if err != nil {
 		s.serviceError(w, r, err.Error(), http.StatusBadRequest)
 		return
@@ -543,6 +562,49 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.audit("service.toggle", svc.Host+" "+state, clientIP(r))
 	http.Redirect(w, r, "/services?notice=Domain+"+state, http.StatusSeeOther)
+}
+
+func (s *server) setServiceAccess(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	svc, err := s.store.serviceByID(id)
+	if err != nil {
+		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+	access := r.FormValue("access")
+	if access != "private" && access != "public" {
+		http.Error(w, "Access must be private or public", http.StatusBadRequest)
+		return
+	}
+	public := access == "public"
+	if public {
+		if err := validatePublicTarget(svc.Target, s.cfg.Listen); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if public == svc.Public {
+		http.Redirect(w, r, "/services", http.StatusSeeOther)
+		return
+	}
+	if err := s.store.setServicePublic(id, public); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.setServicePublic(id, svc.Public)
+		_ = s.writeRoutingFiles()
+		http.Error(w, "Route access could not be changed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.store.audit("service.access", svc.Host+" "+access, clientIP(r))
+	http.Redirect(w, r, "/services?notice=Route+access+changed+to+"+access, http.StatusSeeOther)
 }
 
 func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
@@ -731,7 +793,7 @@ func (s *server) peerError(w http.ResponseWriter, r *http.Request, message strin
 	peers, _ := s.store.listPeers()
 	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
-	data := s.data(r, "Peer", peers, nil, status)
+	data := s.data(r, "Network", peers, nil, status)
 	data.Roles = roles
 	data.Error = message
 	s.renderStatus(w, "peers.html", data, statusCode)
@@ -739,8 +801,14 @@ func (s *server) peerError(w http.ResponseWriter, r *http.Request, message strin
 
 func (s *server) serviceError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
 	services, _ := s.store.listServices()
-	data := s.data(r, "Domains & services", nil, services, wgStatus{})
+	data := s.data(r, "Application routes", nil, services, wgStatus{})
 	data.Error = message
+	data.FormHost = strings.TrimSpace(r.FormValue("host"))
+	data.FormTarget = strings.TrimSpace(r.FormValue("target"))
+	data.FormAccess = r.FormValue("access")
+	if data.FormAccess == "" {
+		data.FormAccess = "private"
+	}
 	s.renderStatus(w, "services.html", data, statusCode)
 }
 

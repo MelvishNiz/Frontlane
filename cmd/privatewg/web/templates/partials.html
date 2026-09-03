@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#f4f8fb">
-  <title>{{.Title}} · PrivateWG</title>
+  <title>{{.Title}} · Frontlane</title>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -25,14 +25,14 @@
 </svg>
 <div class="app-shell">
   <aside class="rail">
-    <a class="brand" href="/" aria-label="PrivateWG home">
+    <a class="brand" href="/" aria-label="Frontlane home">
       <span class="brand-mark"><i></i><i></i><i></i></span>
-      <span><b>PrivateWG</b><small>Network control</small></span>
+      <span><b>Frontlane</b><small>Application gateway</small></span>
     </a>
     <nav aria-label="Main navigation">
       <a href="/"><span class="nav-icon"><svg><use href="#icon-dashboard"></use></svg></span><span>Overview</span></a>
-      <a href="/peers"><span class="nav-icon"><svg><use href="#icon-devices"></use></svg></span><span>Peers</span></a>
-      <a href="/services"><span class="nav-icon"><svg><use href="#icon-language"></use></svg></span><span>Domains</span></a>
+      <a href="/peers"><span class="nav-icon"><svg><use href="#icon-devices"></use></svg></span><span>Network</span></a>
+      <a href="/services"><span class="nav-icon"><svg><use href="#icon-language"></use></svg></span><span>Routes</span></a>
       <a href="/roles"><span class="nav-icon"><svg><use href="#icon-roles"></use></svg></span><span>Roles</span></a>
     </nav>
     <div class="rail-status">
@@ -46,7 +46,7 @@
   </aside>
   <main>
     <header class="topbar">
-      <div><p class="eyebrow">PRIVATE NETWORK / CONTROL</p><h1>{{.Title}}</h1></div>
+      <div><p class="eyebrow">APPLICATION ACCESS / CONTROL</p><h1>{{.Title}}</h1></div>
       <div class="topbar-actions">
         <a class="traefik-button" href="/traefik/dashboard/" target="_blank" rel="noopener"><span class="traefik-mark">T</span><span>Traefik</span><svg><use href="#icon-open"></use></svg></a>
         <div class="identity"><span class="live-pill"><i></i> System active</span><small>{{.PanelDomain}}</small></div>

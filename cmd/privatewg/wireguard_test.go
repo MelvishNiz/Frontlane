@@ -60,12 +60,15 @@ func TestEnabledStateRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := st.createService("app.external.test", "10.77.0.20:80")
+	svc, err := st.createService("app.external.test", "10.77.0.20:80", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !p.Enabled || !svc.Enabled {
-		t.Fatal("new peers and services must be enabled")
+	if !p.Enabled || !svc.Enabled || svc.Public {
+		t.Fatal("new peers and services must be enabled; services must default private")
+	}
+	if err := st.setServicePublic(svc.ID, true); err != nil {
+		t.Fatal(err)
 	}
 	if err := st.setPeerEnabled(p.ID, false); err != nil {
 		t.Fatal(err)
@@ -75,8 +78,8 @@ func TestEnabledStateRoundTrip(t *testing.T) {
 	}
 	p, _ = st.peerByID(p.ID)
 	svc, _ = st.serviceByID(svc.ID)
-	if p.Enabled || svc.Enabled {
-		t.Fatal("disabled state must persist")
+	if p.Enabled || svc.Enabled || !svc.Public {
+		t.Fatal("enabled and public states must persist independently")
 	}
 }
 

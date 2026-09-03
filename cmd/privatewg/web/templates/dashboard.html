@@ -15,8 +15,8 @@
   <section class="panel"><div class="panel-head"><div><p class="eyebrow">TUNNELS</p><h2>Recent peers</h2></div><a class="text-link" href="/peers">Manage peers</a></div>
     {{if .Peers}}<div class="compact-list">{{range .Peers}}<div><span class="kind">{{.Kind}}</span><a class="peer-quick-link" href="/peers/{{.ID}}"><strong>{{.Name}}</strong></a><code>{{.IP}}</code></div>{{end}}</div>{{else}}<div class="empty">No peers yet. Create your first profile to access the network.</div>{{end}}
   </section>
-  <section class="panel"><div class="panel-head"><div><p class="eyebrow">PRIVATE DNS</p><h2>Application routes</h2></div><a class="text-link" href="/services">Manage domains</a></div>
-    {{if .Services}}<div class="compact-list">{{range .Services}}<div><strong>{{.Host}}</strong><code>{{.Target}}</code></div>{{end}}</div>{{else}}<div class="empty">No domains yet. Connect a local application or another server.</div>{{end}}
+  <section class="panel"><div class="panel-head"><div><p class="eyebrow">PUBLIC + PRIVATE INGRESS</p><h2>Application routes</h2></div><a class="text-link" href="/services">Manage routes</a></div>
+    {{if .Services}}<div class="compact-list">{{range .Services}}<div><strong>{{.Host}}</strong><code>{{if .Public}}public{{else}}private{{end}} · {{.Target}}</code></div>{{end}}</div>{{else}}<div class="empty">No routes yet. Connect a local application or another server.</div>{{end}}
   </section>
 </div>
 {{template "footer" .}}

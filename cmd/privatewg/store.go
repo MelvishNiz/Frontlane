@@ -37,6 +37,7 @@ type service struct {
 	Host      string
 	Target    string
 	Enabled   bool
+	Public    bool
 	CreatedAt time.Time
 }
 
@@ -80,6 +81,7 @@ func openStore(path string) (*store, error) {
 		{"peers", "enabled", "INTEGER NOT NULL DEFAULT 1"},
 		{"peers", "last_handshake", "DATETIME NOT NULL DEFAULT '0001-01-01T00:00:00Z'"},
 		{"services", "enabled", "INTEGER NOT NULL DEFAULT 1"},
+		{"services", "public", "INTEGER NOT NULL DEFAULT 0"},
 	} {
 		if err := ensureColumn(db, migration.table, migration.column, migration.definition); err != nil {
 			db.Close()
@@ -305,7 +307,7 @@ func (s *store) restorePeer(p peer, roleIDs []int64) error {
 }
 
 func (s *store) listServices() ([]service, error) {
-	rows, err := s.db.Query(`SELECT id,host,target,enabled,created_at FROM services ORDER BY host`)
+	rows, err := s.db.Query(`SELECT id,host,target,enabled,public,created_at FROM services ORDER BY host`)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +315,7 @@ func (s *store) listServices() ([]service, error) {
 	var result []service
 	for rows.Next() {
 		var svc service
-		if err := rows.Scan(&svc.ID, &svc.Host, &svc.Target, &svc.Enabled, &svc.CreatedAt); err != nil {
+		if err := rows.Scan(&svc.ID, &svc.Host, &svc.Target, &svc.Enabled, &svc.Public, &svc.CreatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, svc)
@@ -321,8 +323,8 @@ func (s *store) listServices() ([]service, error) {
 	return result, rows.Err()
 }
 
-func (s *store) createService(host, target string) (service, error) {
-	result, err := s.db.Exec(`INSERT INTO services(host,target) VALUES(?,?)`, host, target)
+func (s *store) createService(host, target string, public bool) (service, error) {
+	result, err := s.db.Exec(`INSERT INTO services(host,target,public) VALUES(?,?,?)`, host, target, public)
 	if err != nil {
 		return service{}, friendlyDBError(err)
 	}
@@ -332,12 +334,22 @@ func (s *store) createService(host, target string) (service, error) {
 
 func (s *store) serviceByID(id int64) (service, error) {
 	var svc service
-	err := s.db.QueryRow(`SELECT id,host,target,enabled,created_at FROM services WHERE id=?`, id).Scan(&svc.ID, &svc.Host, &svc.Target, &svc.Enabled, &svc.CreatedAt)
+	err := s.db.QueryRow(`SELECT id,host,target,enabled,public,created_at FROM services WHERE id=?`, id).Scan(&svc.ID, &svc.Host, &svc.Target, &svc.Enabled, &svc.Public, &svc.CreatedAt)
 	return svc, err
 }
 
 func (s *store) setServiceEnabled(id int64, enabled bool) error {
 	result, err := s.db.Exec(`UPDATE services SET enabled=? WHERE id=?`, enabled, id)
+	if err == nil {
+		if n, _ := result.RowsAffected(); n == 0 {
+			return sql.ErrNoRows
+		}
+	}
+	return err
+}
+
+func (s *store) setServicePublic(id int64, public bool) error {
+	result, err := s.db.Exec(`UPDATE services SET public=? WHERE id=?`, public, id)
 	if err == nil {
 		if n, _ := result.RowsAffected(); n == 0 {
 			return sql.ErrNoRows
@@ -366,7 +378,7 @@ func (s *store) restoreService(svc service, roleIDs []int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.Exec(`INSERT INTO services(id,host,target,enabled,created_at) VALUES(?,?,?,?,?)`, svc.ID, svc.Host, svc.Target, svc.Enabled, svc.CreatedAt); err != nil {
+	if _, err = tx.Exec(`INSERT INTO services(id,host,target,enabled,public,created_at) VALUES(?,?,?,?,?,?)`, svc.ID, svc.Host, svc.Target, svc.Enabled, svc.Public, svc.CreatedAt); err != nil {
 		return err
 	}
 	for _, roleID := range roleIDs {

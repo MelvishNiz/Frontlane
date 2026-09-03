@@ -45,7 +45,7 @@ func TestLegacyRoleMigrationIsIdempotent(t *testing.T) {
 	if _, err := st.createPeer("new-peer", "client", "new-key", []int64{newRole.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.createService("new.example.com", "10.77.0.21:80"); err != nil {
+	if _, err := st.createService("new.example.com", "10.77.0.21:80", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.Close(); err != nil {
@@ -71,6 +71,13 @@ func TestLegacyRoleMigrationIsIdempotent(t *testing.T) {
 	if got := len(allowed[2]); got != 0 {
 		t.Fatalf("new service received default access: %#v", allowed[2])
 	}
+	newService, err := st.serviceByID(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newService.Public {
+		t.Fatal("existing and new services must default private")
+	}
 }
 
 func TestRoleSharedAccessDefaultDenyAndCascade(t *testing.T) {
@@ -87,7 +94,7 @@ func TestRoleSharedAccessDefaultDenyAndCascade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := st.createService("app.example.com", "10.77.0.20:80")
+	svc, err := st.createService("app.example.com", "10.77.0.20:80", false)
 	if err != nil {
 		t.Fatal(err)
 	}

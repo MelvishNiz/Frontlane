@@ -63,7 +63,7 @@ type traefikRetry struct {
 
 type traefikErrors struct {
 	Status              []string       `yaml:"status"`
-	StatusRewrites      map[string]int `yaml:"statusRewrites"`
+	StatusRewrites      map[string]int `yaml:"statusRewrites,omitempty"`
 	Service             string         `yaml:"service"`
 	Query               string         `yaml:"query"`
 	ErrorRequestHeaders []string       `yaml:"errorRequestHeaders"`
@@ -109,7 +109,7 @@ func validateService(host, target, baseDomain string) error {
 		return errors.New("invalid domain")
 	}
 	if host == "panel."+baseDomain {
-		return errors.New("the panel domain is reserved for PrivateWG")
+		return errors.New("the panel domain is reserved for Frontlane")
 	}
 	u, err := url.Parse("http://" + target)
 	if err != nil || u.Host != target || u.Path != "" || u.User != nil {
@@ -134,6 +134,24 @@ func validateService(host, target, baseDomain string) error {
 	return nil
 }
 
+func validatePublicTarget(target, listen string) error {
+	targetHost, targetPort, targetErr := net.SplitHostPort(target)
+	listenHost, listenPort, listenErr := net.SplitHostPort(listen)
+	targetPortNumber, targetPortErr := strconv.Atoi(targetPort)
+	listenPortNumber, listenPortErr := strconv.Atoi(listenPort)
+	if targetErr != nil || listenErr != nil || targetPortErr != nil || listenPortErr != nil || targetPortNumber != listenPortNumber {
+		return nil
+	}
+	listenIP := net.ParseIP(listenHost)
+	targetIP := net.ParseIP(targetHost)
+	sameIP := listenIP != nil && targetIP != nil && listenIP.Equal(targetIP)
+	sameLoopback := (targetHost == "localhost" && listenIP != nil && listenIP.IsLoopback()) || (listenHost == "localhost" && targetIP != nil && targetIP.IsLoopback())
+	if listenHost == "" || (listenIP != nil && listenIP.IsUnspecified()) || targetHost == listenHost || sameIP || sameLoopback {
+		return errors.New("public routes cannot target the Frontlane control listener")
+	}
+	return nil
+}
+
 func (s *server) writeRoutingFiles() error {
 	services, err := s.store.listServices()
 	if err != nil {
@@ -147,10 +165,10 @@ func (s *server) writeRoutingFiles() error {
 	if err != nil {
 		return err
 	}
-	if err := atomicWrite(s.cfg.TraefikDynamicFile, proxy, 0644); err != nil {
+	if err := atomicWrite(s.cfg.CoreDNSHosts, hosts, 0644); err != nil {
 		return err
 	}
-	return atomicWrite(s.cfg.CoreDNSHosts, hosts, 0644)
+	return atomicWrite(s.cfg.TraefikDynamicFile, proxy, 0644)
 }
 
 func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]string) ([]byte, []byte, error) {
@@ -187,6 +205,14 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 				Errors: &traefikErrors{
 					Status:              []string{"418", "502", "504"},
 					StatusRewrites:      map[string]int{"418": http.StatusForbidden},
+					Service:             "privatewg-errors",
+					Query:               "/__privatewg/errors/{status}",
+					ErrorRequestHeaders: []string{},
+				},
+			},
+			"public-service-errors": {
+				Errors: &traefikErrors{
+					Status:              []string{"502", "504"},
 					Service:             "privatewg-errors",
 					Query:               "/__privatewg/errors/{status}",
 					ErrorRequestHeaders: []string{},
@@ -230,11 +256,15 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 			TLS:         traefikTLS{CertResolver: "letsencrypt"},
 		}
 		if svc.Enabled {
-			if sourceRange := allowed[svc.ID]; len(sourceRange) > 0 {
-				allowlistName := name + "-access"
-				httpConfig.Middlewares[allowlistName] = traefikMiddleware{IPAllowList: &traefikIPAllowList{SourceRange: sourceRange, RejectStatusCode: 418}}
+			sourceRange := allowed[svc.ID]
+			if svc.Public || len(sourceRange) > 0 {
 				router.Service = name
-				router.Middlewares = []string{"service-errors", allowlistName, "retry-upstream"}
+				router.Middlewares = []string{"public-service-errors", "retry-upstream"}
+				if !svc.Public {
+					allowlistName := name + "-access"
+					httpConfig.Middlewares[allowlistName] = traefikMiddleware{IPAllowList: &traefikIPAllowList{SourceRange: sourceRange, RejectStatusCode: 418}}
+					router.Middlewares = []string{"service-errors", allowlistName, "retry-upstream"}
+				}
 				httpConfig.Services[name] = traefikService{
 					LoadBalancer: traefikLoadBalancer{
 						Servers:          []traefikServer{{URL: "http://" + svc.Target}},
@@ -294,9 +324,9 @@ func routeErrorPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>%s - PrivateWG</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>%s - Frontlane</title>
 <style>:root{color:#163044;background:#eef5f7;font-family:ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15%% 12%%,#d5f1ec 0,transparent 28rem),radial-gradient(circle at 85%% 90%%,#dbe8f5 0,transparent 30rem),#eef5f7}.card{width:min(620px,100%%);padding:48px;background:#ffffffea;border:1px solid #cfdee5;border-radius:26px;box-shadow:0 28px 80px #17384c1a}.signal{display:flex;gap:4px;align-items:end;height:25px;margin-bottom:32px}.signal i{display:block;width:5px;background:#12a99b;border-radius:4px}.signal i:nth-child(1){height:9px}.signal i:nth-child(2){height:16px}.signal i:nth-child(3){height:24px;opacity:.3}.label{color:#07877e;font:700 11px ui-monospace,monospace;letter-spacing:.16em}h1{margin:12px 0 14px;color:#0b2942;font-size:clamp(34px,7vw,56px);line-height:1;letter-spacing:-.045em}p{margin:0;color:#627b8c;font-size:16px;line-height:1.7}.meta{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid #dce7ee;color:#77909f;font:11px ui-monospace,monospace}@media(max-width:520px){.card{padding:32px 25px}.meta{display:grid}}</style></head>
-<body><main class="card"><div class="signal" aria-hidden="true"><i></i><i></i><i></i></div><span class="label">%s - %d</span><h1>%s</h1><p>%s</p><div class="meta"><span>PrivateWG network edge</span><span>HTTP %d</span></div></main></body></html>`, title, label, status, title, message, status)
+<body><main class="card"><div class="signal" aria-hidden="true"><i></i><i></i><i></i></div><span class="label">%s - %d</span><h1>%s</h1><p>%s</p><div class="meta"><span>Frontlane application edge</span><span>HTTP %d</span></div></main></body></html>`, title, label, status, title, message, status)
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {

@@ -3,6 +3,9 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -32,11 +35,32 @@ func TestValidateService(t *testing.T) {
 	}
 }
 
+func TestValidatePublicTarget(t *testing.T) {
+	for _, test := range []struct {
+		target, listen string
+		valid          bool
+	}{
+		{"10.77.0.20:80", "10.77.0.1:8080", true},
+		{"127.0.0.1:8081", "10.77.0.1:8080", true},
+		{"10.77.0.1:8080", "10.77.0.1:8080", false},
+		{"10.77.0.1:08080", "10.77.0.1:8080", false},
+		{"[::ffff:10.77.0.1]:8080", "10.77.0.1:8080", false},
+		{"127.0.0.1:8080", ":8080", false},
+	} {
+		err := validatePublicTarget(test.target, test.listen)
+		if (err == nil) != test.valid {
+			t.Errorf("validatePublicTarget(%q, %q) error=%v, valid=%v", test.target, test.listen, err, test.valid)
+		}
+	}
+}
+
 func TestBuildRoutingConfigs(t *testing.T) {
 	proxy, hosts, err := buildRoutingConfigs(config{BaseDomain: "example.com"}, []service{
 		{ID: 1, Host: "active.example.com", Target: "10.77.0.20:80", Enabled: true},
 		{ID: 2, Host: "paused.example.com", Target: "10.77.0.21:80", Enabled: false},
 		{ID: 3, Host: "denied.example.com", Target: "10.77.0.22:80", Enabled: true},
+		{ID: 4, Host: "public.example.com", Target: "10.77.0.23:80", Enabled: true, Public: true},
+		{ID: 5, Host: "public-paused.example.com", Target: "10.77.0.24:80", Enabled: false, Public: true},
 	}, map[int64][]string{1: {"10.77.0.2/32", "10.77.0.4/32"}})
 	if err != nil {
 		t.Fatal(err)
@@ -95,8 +119,66 @@ func TestBuildRoutingConfigs(t *testing.T) {
 	if cfg.HTTP.Middlewares["denied-route"].ReplacePath.Path != "/__privatewg/errors/403" {
 		t.Fatal("unauthorized service must route to 403")
 	}
+	public := cfg.HTTP.Routers["service-4"]
+	if public.Service != "service-4" || strings.Join(public.Middlewares, ",") != "public-service-errors,retry-upstream" {
+		t.Fatalf("public router = %#v", public)
+	}
+	if _, exists := cfg.HTTP.Middlewares["service-4-access"]; exists {
+		t.Fatal("public service must not have an IP allowlist")
+	}
+	publicErrors := cfg.HTTP.Middlewares["public-service-errors"].Errors
+	if strings.Join(publicErrors.Status, ",") != "502,504" || publicErrors.StatusRewrites != nil {
+		t.Fatalf("public error middleware = %#v", publicErrors)
+	}
+	if strings.Contains(string(proxy), "public-service-errors:\n      errors:\n        statusRewrites:") {
+		t.Fatal("public error middleware must omit empty statusRewrites")
+	}
+	publicPaused := cfg.HTTP.Routers["service-5"]
+	if publicPaused.Service != "privatewg-errors" || strings.Join(publicPaused.Middlewares, ",") != "paused-route" {
+		t.Fatalf("paused public router = %#v", publicPaused)
+	}
 	if !strings.Contains(string(hosts), "10.77.0.1 paused.example.com") {
 		t.Fatal("paused service must remain resolvable for its error page")
+	}
+}
+
+func TestSetServiceAccess(t *testing.T) {
+	dir := t.TempDir()
+	st, err := openStore(filepath.Join(dir, "frontlane.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	svc, err := st.createService("app.example.com", "10.77.0.20:80", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &server{
+		cfg: config{
+			Listen:             "10.77.0.1:8080",
+			BaseDomain:         "example.com",
+			TraefikDynamicFile: filepath.Join(dir, "dynamic.yml"),
+			CoreDNSHosts:       filepath.Join(dir, "domains.hosts"),
+		},
+		store: st, sessions: map[string]session{"valid": {CSRF: "token", Expires: time.Now().Add(time.Hour)}},
+	}
+	form := url.Values{"csrf": {"token"}, "access": {"public"}}
+	req := httptest.NewRequest(http.MethodPost, "/services/1/access", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", strconv.FormatInt(svc.ID, 10))
+	req.AddCookie(&http.Cookie{Name: "pwg_session", Value: "valid"})
+	response := httptest.NewRecorder()
+	s.setServiceAccess(response, req)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("access response = %d: %s", response.Code, response.Body.String())
+	}
+	updated, err := st.serviceByID(svc.ID)
+	if err != nil || !updated.Public {
+		t.Fatalf("public state = %#v, error = %v", updated, err)
+	}
+	proxy, err := os.ReadFile(s.cfg.TraefikDynamicFile)
+	if err != nil || !strings.Contains(string(proxy), "public-service-errors") {
+		t.Fatalf("public routing not written: %v", err)
 	}
 }
 

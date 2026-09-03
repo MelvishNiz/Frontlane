@@ -2,9 +2,9 @@
 <section class="directory-shell">
   <div class="directory-toolbar">
     <div>
-      <p class="eyebrow">PRIVATE ROUTE DIRECTORY</p>
+      <p class="eyebrow">APPLICATION ROUTES</p>
       <h2>Domains & targets</h2>
-      <p class="muted">Internal and external domains remain accessible only through the VPN.</p>
+      <p class="muted">Publish applications openly or restrict them to authorized network peers.</p>
     </div>
     <div class="toolbar-actions">
       <span class="directory-count"><b>{{len .Services}}</b><small>registered routes</small></span>
@@ -13,13 +13,13 @@
   </div>
 
   <aside class="dns-note">
-    <span class="dns-note-icon">DNS</span>
-    <p><b>External domains are supported.</b><small>Point the domain's public DNS A/AAAA record to this server. Traefik issues TLS certificates automatically; access requires an enabled peer sharing a role with the domain.</small></p>
+    <span class="dns-note-icon">TLS</span>
+    <p><b>Point each domain to this server.</b><small>Traefik issues certificates automatically. Public routes are open to the Internet; authentication must be provided by the upstream application.</small></p>
   </aside>
 
   {{if .Services}}
   <div class="resource-list service-resource-list">
-    <div class="resource-header service-columns" aria-hidden="true"><span>Domain</span><span>Upstream target</span><span>Type</span><span>Access</span><span></span></div>
+    <div class="resource-header service-columns" aria-hidden="true"><span>Domain</span><span>Upstream target</span><span>Scope</span><span>Visibility</span><span>Status</span><span></span></div>
     {{range .Services}}
     <article class="resource-row service-columns {{if not .Enabled}}is-disabled{{end}}">
       <div class="resource-identity domain-identity">
@@ -28,6 +28,11 @@
       </div>
       <code class="target-chip">{{.Target}}</code>
       <span class="scope-badge {{if not (internalDomain .Host)}}external{{end}}">{{if internalDomain .Host}}Internal{{else}}External{{end}}</span>
+      <form method="post" action="/services/{{.ID}}/access" class="access-form" {{if not .Public}}data-confirm="Make {{.Host}} public? Anyone on the Internet can reach its upstream application. Frontlane will not add authentication."{{end}}>
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="access" value="{{if .Public}}private{{else}}public{{end}}">
+        <button class="access-badge {{if .Public}}public{{end}}" type="submit" aria-label="Change {{.Host}} to {{if .Public}}private{{else}}public{{end}} access">{{if .Public}}Public{{else}}Private{{end}}</button>
+      </form>
       <form method="post" action="/services/{{.ID}}/toggle" class="toggle-form">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} domain {{.Host}}"><span></span></button>
@@ -50,15 +55,16 @@
 <dialog class="app-dialog" id="service-dialog" {{if .Error}}data-open-on-error{{end}}>
   <div class="dialog-card">
     <div class="dialog-head">
-      <div><p class="eyebrow">NEW PRIVATE ROUTE</p><h2>Add domain</h2></div>
+      <div><p class="eyebrow">NEW APPLICATION ROUTE</p><h2>Add domain</h2></div>
       <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
     <p class="muted">Use a built-in subdomain or your own external domain.</p>
     {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
     <form method="post" action="/services" class="stack-form">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Domain<input name="host" required placeholder="app.{{.BaseDomain}} or app.other-domain.com" autocomplete="off"><small>Exclude <code>https://</code> and paths.</small></label>
-      <label>Application target<input name="target" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Use local loopback or <code>10.77.0.x:port</code> for a server peer.</small></label>
+      <label>Domain<input name="host" value="{{.FormHost}}" required placeholder="app.{{.BaseDomain}} or app.other-domain.com" autocomplete="off"><small>Exclude <code>https://</code> and paths.</small></label>
+      <label>Application target<input name="target" value="{{.FormTarget}}" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Use local loopback or <code>10.77.0.x:port</code> for a server peer.</small></label>
+      <fieldset class="access-picker"><legend>Visibility</legend><label><input type="radio" name="access" value="private" {{if ne .FormAccess "public"}}checked{{end}}><span><b>Private</b><small>Requires an authorized WireGuard peer and shared role.</small></span></label><label><input type="radio" name="access" value="public" {{if eq .FormAccess "public"}}checked{{end}}><span><b>Public</b><small>Open to the Internet. The upstream must provide any required authentication.</small></span></label></fieldset>
       <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Add route</button></div>
     </form>
   </div>
