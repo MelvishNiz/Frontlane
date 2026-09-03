@@ -22,6 +22,7 @@
       <div><small>Inbound traffic</small><strong data-peer-rx>{{bytes .Peer.ReceivedBytes}}</strong></div>
       <div><small>Outbound traffic</small><strong data-peer-tx>{{bytes .Peer.TransmittedBytes}}</strong></div>
     </div>
+    {{if or .Peer.Note (eq .Peer.Kind "client")}}<div class="peer-metadata">{{if eq .Peer.Kind "client"}}<div><small>Access</small><strong>{{range $i, $name := .Peer.RoleNames}}{{if $i}}, {{end}}{{$name}}{{else}}No access{{end}}</strong></div>{{end}}{{if .Peer.Note}}<div><small>Note</small><p>{{.Peer.Note}}</p></div>{{end}}</div>{{end}}
   </section>
 
   {{if .ConfigStored}}

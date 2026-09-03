@@ -85,6 +85,10 @@ type viewData struct {
 	FormTarget    string
 	FormAccess    string
 	FormServiceID int64
+	FormPeerID    int64
+	FormPeerName  string
+	FormPeerNote  string
+	FormRoleIDs   map[int64]bool
 }
 
 func main() {
@@ -144,6 +148,7 @@ func main() {
 	mux.HandleFunc("GET /{$}", s.auth(s.dashboard))
 	mux.HandleFunc("GET /vpn", s.auth(s.peersPage))
 	mux.HandleFunc("POST /vpn", s.auth(s.createPeer))
+	mux.HandleFunc("POST /vpn/{id}", s.auth(s.updatePeer))
 	mux.HandleFunc("GET /vpn/{id}", s.auth(s.peerDetail))
 	mux.HandleFunc("GET /__privatewg/api/vpn/status", s.auth(s.peerStatuses))
 	mux.HandleFunc("GET /vpn/{id}/config", s.auth(s.downloadPeerConfig))
@@ -281,9 +286,10 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 	defer s.applyMu.Unlock()
 	name := strings.TrimSpace(r.FormValue("name"))
 	kind := r.FormValue("kind")
+	note := strings.TrimSpace(r.FormValue("note"))
 	roleIDs, err := parseFormIDs(r.Form["role_ids"])
-	if !peerNamePattern.MatchString(name) || (kind != "client" && kind != "server") || err != nil || len(roleIDs) == 0 {
-		s.peerError(w, r, "Invalid VPN name, type, or access. Select at least one access.", http.StatusBadRequest)
+	if !peerNamePattern.MatchString(name) || (kind != "client" && kind != "server") || len(note) > 500 || err != nil || (kind == "client" && len(roleIDs) == 0) {
+		s.peerError(w, r, "Invalid VPN name, note, or access. Client VPN requires at least one access.", http.StatusBadRequest)
 		return
 	}
 	privateKey, publicKey, err := generateKeyPair()
@@ -291,7 +297,7 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		s.peerError(w, r, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	p, err := s.store.createPeer(name, kind, publicKey, roleIDs)
+	p, err := s.store.createPeerWithNote(name, kind, publicKey, note, roleIDs)
 	if err != nil {
 		s.peerError(w, r, err.Error(), http.StatusBadRequest)
 		return
@@ -318,6 +324,56 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.audit("peer.create", p.Name+" "+p.IP, clientIP(r))
 	http.Redirect(w, r, fmt.Sprintf("/vpn/%d?created=1", p.ID), http.StatusSeeOther)
+}
+
+func (s *server) updatePeer(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	note := strings.TrimSpace(r.FormValue("note"))
+	roleIDs, parseErr := parseFormIDs(r.Form["role_ids"])
+	if !peerNamePattern.MatchString(name) || len(note) > 500 || parseErr != nil {
+		s.peerFormError(w, r, id, "Invalid VPN name, note, or access.", http.StatusBadRequest)
+		return
+	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	old, err := s.store.peerByID(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if old.Kind == "client" && len(roleIDs) == 0 {
+		s.peerFormError(w, r, id, "Select at least one access for a client VPN.", http.StatusBadRequest)
+		return
+	}
+	oldRoleIDs := setIDs(old.RoleIDs)
+	if err := s.store.updatePeer(id, name, note, roleIDs); err != nil {
+		s.peerFormError(w, r, id, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.applyWireGuard(); err != nil {
+		_ = s.store.updatePeer(id, old.Name, old.Note, oldRoleIDs)
+		_ = s.applyWireGuard()
+		s.peerFormError(w, r, id, "WireGuard rejected the updated device name: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.updatePeer(id, old.Name, old.Note, oldRoleIDs)
+		_ = s.applyWireGuard()
+		_ = s.writeRoutingFiles()
+		s.peerFormError(w, r, id, "VPN access could not be updated: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.store.audit("peer.update", name+" "+old.IP, clientIP(r))
+	http.Redirect(w, r, "/vpn?tab="+old.Kind+"&notice=VPN+updated", http.StatusSeeOther)
 }
 
 func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
@@ -883,12 +939,25 @@ func (s *server) renderRoles(w http.ResponseWriter, r *http.Request, selected ro
 }
 
 func (s *server) peerError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
+	s.renderPeerFormError(w, r, 0, message, statusCode)
+}
+
+func (s *server) peerFormError(w http.ResponseWriter, r *http.Request, peerID int64, message string, statusCode int) {
+	s.renderPeerFormError(w, r, peerID, message, statusCode)
+}
+
+func (s *server) renderPeerFormError(w http.ResponseWriter, r *http.Request, peerID int64, message string, statusCode int) {
 	peers, _ := s.store.listPeers()
 	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
 	data := s.data(r, "VPN connections", peers, nil, status)
 	data.ClientPeers, data.ServerPeers = splitPeers(peers)
 	data.VPNTab = r.FormValue("kind")
+	if peerID > 0 {
+		if p, err := s.store.peerByID(peerID); err == nil {
+			data.VPNTab = p.Kind
+		}
+	}
 	if data.VPNTab == "" {
 		data.VPNTab = r.URL.Query().Get("tab")
 	}
@@ -900,6 +969,11 @@ func (s *server) peerError(w http.ResponseWriter, r *http.Request, message strin
 	}
 	data.Roles = roles
 	data.Error = message
+	data.FormPeerID = peerID
+	data.FormPeerName = strings.TrimSpace(r.FormValue("name"))
+	data.FormPeerNote = strings.TrimSpace(r.FormValue("note"))
+	roleIDs, _ := parseFormIDs(r.Form["role_ids"])
+	data.FormRoleIDs = boolIDs(roleIDs)
 	s.renderStatus(w, "vpn.html", data, statusCode)
 }
 

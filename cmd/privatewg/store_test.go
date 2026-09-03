@@ -162,6 +162,39 @@ func TestRoleSharedAccessDefaultDenyAndCascade(t *testing.T) {
 	assertCount(t, st.db, `SELECT COUNT(*) FROM peer_roles WHERE role_id=?`, 0, temporaryID)
 }
 
+func TestPeerUpdateAndServerAccess(t *testing.T) {
+	st, err := openStore(filepath.Join(t.TempDir(), "peer-update.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	roleID := testRoleID(t, st, "All")
+	client, err := st.createPeerWithNote("laptop", "client", "client-key", "Initial note", []int64{roleID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.updatePeer(client.ID, "work-laptop", "Alice's device", []int64{roleID}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := st.peerByID(client.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name != "work-laptop" || updated.Note != "Alice's device" || !updated.RoleIDs[roleID] || len(updated.RoleNames) != 1 {
+		t.Fatalf("updated client = %#v", updated)
+	}
+	if err := st.updatePeer(client.ID, "work-laptop", "", nil); err == nil {
+		t.Fatal("client update without access must fail")
+	}
+	server, err := st.createPeerWithNote("api", "server", "server-key", "Production", []int64{roleID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(server.RoleIDs) != 0 || len(server.RoleNames) != 0 {
+		t.Fatalf("server received access: %#v", server)
+	}
+}
+
 func TestSplitPeers(t *testing.T) {
 	clients, servers := splitPeers([]peer{
 		{ID: 1, Kind: "client"},
@@ -188,9 +221,10 @@ func TestVPNTemplateTabsAndURLs(t *testing.T) {
 	}
 	data := viewData{
 		Title: "VPN connections", Section: "endpoints", User: "admin", CSRF: "token", VPNTab: "server",
-		ClientPeers: []peer{{ID: 1, Name: "laptop", Kind: "client"}},
-		ServerPeers: []peer{{ID: 2, Name: "api", Kind: "server"}},
-		VPNPeers:    []peer{{ID: 2, Name: "api", Kind: "server"}},
+		ClientPeers: []peer{{ID: 1, Name: "laptop", Kind: "client", RoleIDs: map[int64]bool{1: true}, RoleNames: []string{"Engineering"}}},
+		ServerPeers: []peer{{ID: 2, Name: "api", Kind: "server", Note: "Production"}},
+		VPNPeers:    []peer{{ID: 2, Name: "api", Kind: "server", Note: "Production"}},
+		Roles:       []role{{ID: 1, Name: "Engineering", ServiceIDs: map[int64]bool{}}},
 	}
 	var rendered bytes.Buffer
 	if err := tpl.ExecuteTemplate(&rendered, "vpn.html", data); err != nil {
@@ -199,6 +233,23 @@ func TestVPNTemplateTabsAndURLs(t *testing.T) {
 	output := rendered.String()
 	if !strings.Contains(output, `href="/vpn?tab=server"`) || !strings.Contains(output, `href="/vpn/2"`) || strings.Contains(output, "/peers") || strings.Contains(output, ">laptop<") {
 		t.Fatal("VPN page must render the selected server tab with /vpn URLs only")
+	}
+	for _, expected := range []string{`id="server-create-dialog"`, `id="client-create-dialog"`, `id="peer-edit-2"`, `action="/vpn/2"`, `name="note"`} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("VPN page missing %q", expected)
+		}
+	}
+	if strings.Contains(output, `class="resource-header peer-columns server-peer-columns" aria-hidden="true"><span>Server</span><span>Gateway IP</span><span>Access</span>`) {
+		t.Fatal("server table must not show access")
+	}
+	data.VPNTab, data.VPNPeers = "client", data.ClientPeers
+	rendered.Reset()
+	if err := tpl.ExecuteTemplate(&rendered, "vpn.html", data); err != nil {
+		t.Fatal(err)
+	}
+	output = rendered.String()
+	if !strings.Contains(output, `<span>Gateway IP</span><span>Access</span>`) || !strings.Contains(output, `Engineering`) || !strings.Contains(output, `name="role_ids"`) {
+		t.Fatal("client table and dialogs must show editable access")
 	}
 }
 

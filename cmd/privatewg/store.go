@@ -22,6 +22,9 @@ type peer struct {
 	Kind             string
 	IP               string
 	PublicKey        string
+	Note             string
+	RoleIDs          map[int64]bool
+	RoleNames        []string
 	ConfigCipher     []byte
 	HasConfig        bool
 	Enabled          bool
@@ -80,6 +83,7 @@ func openStore(path string) (*store, error) {
 		{"peers", "config_cipher", "BLOB"},
 		{"peers", "enabled", "INTEGER NOT NULL DEFAULT 1"},
 		{"peers", "last_handshake", "DATETIME NOT NULL DEFAULT '0001-01-01T00:00:00Z'"},
+		{"peers", "note", "TEXT NOT NULL DEFAULT ''"},
 		{"services", "enabled", "INTEGER NOT NULL DEFAULT 1"},
 		{"services", "public", "INTEGER NOT NULL DEFAULT 0"},
 	} {
@@ -89,6 +93,10 @@ func openStore(path string) (*store, error) {
 		}
 	}
 	if err := migrateLegacyRoleAccess(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if _, err := db.Exec(`DELETE FROM peer_roles WHERE peer_id IN (SELECT id FROM peers WHERE kind='server')`); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -184,26 +192,41 @@ func (s *store) authenticate(username, password string) bool {
 }
 
 func (s *store) listPeers() ([]peer, error) {
-	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at,last_handshake FROM peers ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id,name,kind,ip,public_key,note,COALESCE(config_cipher,''),enabled,created_at,last_handshake FROM peers ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var result []peer
 	for rows.Next() {
 		var p peer
-		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt, &p.LastHandshake); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.Note, &p.ConfigCipher, &p.Enabled, &p.CreatedAt, &p.LastHandshake); err != nil {
+			rows.Close()
 			return nil, err
 		}
 		p.HasConfig = len(p.ConfigCipher) > 0
 		result = append(result, p)
 	}
-	return result, rows.Err()
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for i := range result {
+		if err := s.loadPeerRoles(&result[i]); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
 func (s *store) createPeer(name, kind, publicKey string, roleIDs []int64) (peer, error) {
-	if len(roleIDs) == 0 {
-		return peer{}, errors.New("select at least one role")
+	return s.createPeerWithNote(name, kind, publicKey, "", roleIDs)
+}
+
+func (s *store) createPeerWithNote(name, kind, publicKey, note string, roleIDs []int64) (peer, error) {
+	if kind == "client" && len(roleIDs) == 0 {
+		return peer{}, errors.New("select at least one access")
+	}
+	if kind == "server" {
+		roleIDs = nil
 	}
 	peers, err := s.listPeers()
 	if err != nil {
@@ -229,7 +252,7 @@ func (s *store) createPeer(name, kind, publicKey string, roleIDs []int64) (peer,
 		return peer{}, err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`INSERT INTO peers(name,kind,ip,public_key) VALUES(?,?,?,?)`, name, kind, ip, publicKey)
+	result, err := tx.Exec(`INSERT INTO peers(name,kind,ip,public_key,note) VALUES(?,?,?,?,?)`, name, kind, ip, publicKey, note)
 	if err != nil {
 		return peer{}, friendlyDBError(err)
 	}
@@ -250,9 +273,61 @@ func (s *store) createPeer(name, kind, publicKey string, roleIDs []int64) (peer,
 
 func (s *store) peerByID(id int64) (peer, error) {
 	var p peer
-	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,COALESCE(config_cipher,''),enabled,created_at,last_handshake FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.ConfigCipher, &p.Enabled, &p.CreatedAt, &p.LastHandshake)
+	err := s.db.QueryRow(`SELECT id,name,kind,ip,public_key,note,COALESCE(config_cipher,''),enabled,created_at,last_handshake FROM peers WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.IP, &p.PublicKey, &p.Note, &p.ConfigCipher, &p.Enabled, &p.CreatedAt, &p.LastHandshake)
+	if err != nil {
+		return p, err
+	}
 	p.HasConfig = len(p.ConfigCipher) > 0
-	return p, err
+	return p, s.loadPeerRoles(&p)
+}
+
+func (s *store) loadPeerRoles(p *peer) error {
+	rows, err := s.db.Query(`SELECT r.id,r.name FROM roles r JOIN peer_roles pr ON pr.role_id=r.id WHERE pr.peer_id=? ORDER BY r.name COLLATE NOCASE,r.id`, p.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	p.RoleIDs = map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return err
+		}
+		p.RoleIDs[id] = true
+		p.RoleNames = append(p.RoleNames, name)
+	}
+	return rows.Err()
+}
+
+func (s *store) updatePeer(id int64, name, note string, roleIDs []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var kind string
+	if err := tx.QueryRow(`SELECT kind FROM peers WHERE id=?`, id).Scan(&kind); err != nil {
+		return err
+	}
+	if kind == "client" && len(roleIDs) == 0 {
+		return errors.New("select at least one access")
+	}
+	if kind == "server" {
+		roleIDs = nil
+	}
+	if _, err := tx.Exec(`UPDATE peers SET name=?,note=? WHERE id=?`, name, note, id); err != nil {
+		return friendlyDBError(err)
+	}
+	if _, err := tx.Exec(`DELETE FROM peer_roles WHERE peer_id=?`, id); err != nil {
+		return err
+	}
+	for _, roleID := range roleIDs {
+		if _, err := tx.Exec(`INSERT INTO peer_roles(peer_id,role_id) VALUES(?,?)`, id, roleID); err != nil {
+			return friendlyDBError(err)
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *store) setPeerEnabled(id int64, enabled bool) error {
@@ -295,7 +370,7 @@ func (s *store) restorePeer(p peer, roleIDs []int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,config_cipher,enabled,created_at,last_handshake) VALUES(?,?,?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.ConfigCipher, p.Enabled, p.CreatedAt, p.LastHandshake); err != nil {
+	if _, err = tx.Exec(`INSERT INTO peers(id,name,kind,ip,public_key,note,config_cipher,enabled,created_at,last_handshake) VALUES(?,?,?,?,?,?,?,?,?,?)`, p.ID, p.Name, p.Kind, p.IP, p.PublicKey, p.Note, p.ConfigCipher, p.Enabled, p.CreatedAt, p.LastHandshake); err != nil {
 		return err
 	}
 	for _, roleID := range roleIDs {
@@ -543,7 +618,7 @@ func (s *store) roleAssignmentIDs(roleID int64) ([]int64, []int64, error) {
 }
 
 func (s *store) allowedServiceIPs() (map[int64][]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT rs.service_id,p.ip FROM role_services rs JOIN peer_roles pr ON pr.role_id=rs.role_id JOIN peers p ON p.id=pr.peer_id WHERE p.enabled=1 ORDER BY rs.service_id,p.id`)
+	rows, err := s.db.Query(`SELECT DISTINCT rs.service_id,p.ip FROM role_services rs JOIN peer_roles pr ON pr.role_id=rs.role_id JOIN peers p ON p.id=pr.peer_id WHERE p.enabled=1 AND p.kind='client' ORDER BY rs.service_id,p.id`)
 	if err != nil {
 		return nil, err
 	}
