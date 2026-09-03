@@ -242,6 +242,9 @@ func TestVPNTemplateTabsAndURLs(t *testing.T) {
 	if strings.Contains(output, `class="resource-header peer-columns server-peer-columns" aria-hidden="true"><span>Server</span><span>Gateway IP</span><span>Access</span>`) {
 		t.Fatal("server table must not show access")
 	}
+	if strings.Contains(output, `class="directory-count"`) {
+		t.Fatal("VPN page must not show a connection counter")
+	}
 	data.VPNTab, data.VPNPeers = "client", data.ClientPeers
 	rendered.Reset()
 	if err := tpl.ExecuteTemplate(&rendered, "vpn.html", data); err != nil {
@@ -280,7 +283,7 @@ func TestServicesTemplate(t *testing.T) {
 			t.Fatalf("routes page missing %q", expected)
 		}
 	}
-	for _, removed := range []string{"Application routes", "DNS points traffic here", ">Open <", ">Live<", ">Access<"} {
+	for _, removed := range []string{"Application routes", "DNS points traffic here", ">Open <", ">Live<", ">Access<", `class="directory-count"`} {
 		if strings.Contains(output, removed) {
 			t.Fatalf("routes page still contains %q", removed)
 		}
@@ -313,11 +316,11 @@ func TestRolesTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := rendered.String()
-	if !strings.Contains(output, `href="/roles" aria-current="page"`) || !strings.Contains(output, `id="confirm-dialog"`) {
-		t.Fatal("access navigation must be active and include the shared confirmation dialog")
+	if !strings.Contains(output, `href="/roles" aria-current="page"`) || !strings.Contains(output, `id="confirm-dialog"`) || strings.Contains(output, `class="identity"`) {
+		t.Fatal("access navigation must be active, hide gateway identity, and include the shared confirmation dialog")
 	}
-	if !strings.Contains(output, `class="resource-header access-columns"`) || !strings.Contains(output, `id="access-edit-1"`) || strings.Contains(output, `name="peer_ids"`) || !strings.Contains(output, `<span>Traefik</span>`) {
-		t.Fatal("access page must use a table, modal CRUD, route-only assignments, and Traefik label")
+	if !strings.Contains(output, `class="resource-header access-columns"`) || !strings.Contains(output, `id="access-edit-1"`) || !strings.Contains(output, `data-dialog-open="access-edit-1"><svg aria-hidden="true"><use href="#icon-edit"></use></svg> Edit`) || strings.Contains(output, `name="peer_ids"`) || strings.Contains(output, `class="directory-count"`) || !strings.Contains(output, `<span>Traefik</span>`) {
+		t.Fatal("access page must use a table, icon edit action, modal CRUD, route-only assignments, no counter, and Traefik label")
 	}
 	data.Role = role{}
 	if err := tpl.ExecuteTemplate(io.Discard, "access.html", data); err != nil {

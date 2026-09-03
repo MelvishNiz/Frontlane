@@ -7,7 +7,6 @@
       <p class="muted">Manage user devices and upstream application hosts separately.</p>
     </div>
     <div class="toolbar-actions">
-      <span class="directory-count"><b>{{len .Peers}}</b><small>VPN connections</small></span>
       {{if eq .VPNTab "server"}}<button class="primary" type="button" data-dialog-open="server-create-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add server</button>{{else}}<button class="primary" type="button" data-dialog-open="client-create-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add client</button>{{end}}
     </div>
   </div>

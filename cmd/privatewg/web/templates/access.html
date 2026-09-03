@@ -7,7 +7,6 @@
       <p class="muted">Group private application routes into reusable VPN access grants.</p>
     </div>
     <div class="toolbar-actions">
-      <span class="directory-count"><b>{{len .Roles}}</b><small>accesses</small></span>
       <button class="primary" type="button" data-dialog-open="access-create-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add access</button>
     </div>
   </div>
@@ -21,7 +20,7 @@
       <span class="route-count"><b>{{len .ServiceIDs}}</b><small>routes</small></span>
       <span class="resource-created">{{ago .CreatedAt}}</span>
       <div class="row-actions">
-        <button class="row-detail" type="button" data-dialog-open="access-edit-{{.ID}}">Edit</button>
+        <button class="row-detail" type="button" data-dialog-open="access-edit-{{.ID}}"><svg aria-hidden="true"><use href="#icon-edit"></use></svg> Edit</button>
         <form method="post" action="/roles/{{.ID}}/delete" data-confirm="Delete access {{.Name}}? VPN connections using it will lose these route grants immediately." data-confirm-title="Delete access?" data-confirm-action="Delete access"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="icon-danger" type="submit" aria-label="Delete access {{.Name}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button></form>
       </div>
     </article>

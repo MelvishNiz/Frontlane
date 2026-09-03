@@ -108,12 +108,6 @@ main { grid-column: 2; width: 100%; max-width: 1680px; padding: 35px clamp(24px,
 .traefik-button:hover, .traefik-button:focus-visible { color: var(--signal-dark); background: white; border-color: #8cb9f8; outline: 3px solid rgba(47, 125, 246, .12); transform: translateY(-1px); }
 .traefik-button > svg { width: 14px; height: 14px; color: #789093; }
 .traefik-mark { display: grid; width: 26px; height: 26px; place-items: center; color: white; background: #24a1c1; border-radius: 7px; font: 800 12px "SFMono-Regular", Consolas, monospace; }
-.identity { display: flex; align-items: flex-end; flex-direction: column; gap: 6px; }
-.identity small { color: #7a9295; font: 10px "SFMono-Regular", Consolas, monospace; }
-.live-pill { display: inline-flex; gap: 7px; align-items: center; padding: 6px 10px; color: var(--mint-dark); background: var(--mint-wash); border: 1px solid #c0e9de; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.live-pill i { width: 6px; height: 6px; background: var(--mint); border-radius: 50%; box-shadow: 0 0 0 4px rgba(49, 184, 159, .12); }
-.live-pill.is-offline { color: #6a7779; background: #edf1f1; border-color: #d5dede; }
-.live-pill.is-offline i { background: #89999b; box-shadow: none; }
 
 .panel, .directory-shell { background: var(--surface); border: 1px solid rgba(189, 206, 209, .78); border-radius: var(--radius); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
 .panel h2, .directory-toolbar h2, .dialog-card h2 { margin: 0; color: var(--pine); font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 500; letter-spacing: -.03em; }
@@ -138,9 +132,6 @@ main { grid-column: 2; width: 100%; max-width: 1680px; padding: 35px clamp(24px,
 .directory-toolbar { display: flex; gap: 26px; align-items: center; justify-content: space-between; padding: 29px 31px 25px; border-bottom: 1px solid var(--line); }
 .directory-toolbar .muted { max-width: 650px; margin: 7px 0 0; font-size: 13px; }
 .toolbar-actions { display: flex; gap: 11px; align-items: center; }
-.directory-count, .count-badge { display: grid; min-width: 91px; padding: 8px 12px; background: #edf4f4; border: 1px solid var(--line); border-radius: 10px; }
-.directory-count b, .count-badge b { color: var(--pine); font-size: 17px; line-height: 1; }
-.directory-count small, .count-badge small { margin-top: 4px; color: var(--muted); font-size: 8px; }
 .vpn-tabs { display: flex; gap: 6px; padding: 17px 29px 0; border-bottom: 1px solid var(--line); }
 .vpn-tabs a { display: flex; gap: 18px; align-items: center; padding: 11px 14px 12px; color: var(--muted); border-bottom: 3px solid transparent; font-size: 11px; font-weight: 750; text-decoration: none; }
 .vpn-tabs a:hover { color: var(--pine); }
@@ -161,7 +152,7 @@ main { grid-column: 2; width: 100%; max-width: 1680px; padding: 35px clamp(24px,
 .peer-columns.client-peer-columns { grid-template-columns: minmax(180px, 1.35fr) minmax(82px, .55fr) minmax(100px, .75fr) minmax(100px, .75fr) minmax(78px, .55fr) 58px 96px; }
 .service-columns { grid-template-columns: minmax(220px, 1.5fr) minmax(150px, 1fr) 75px 70px 52px 97px; }
 .resource-header { padding: 12px 12px 8px; color: #60777a; font: 8px "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
-.resource-header.service-columns span:nth-child(4), .resource-header.service-columns span:nth-child(5) { justify-self: center; }
+.resource-header.service-columns span:nth-child(4), .resource-header.service-columns span:nth-child(5), .resource-header.server-peer-columns span:nth-child(5), .resource-header.client-peer-columns span:nth-child(6) { justify-self: center; }
 .resource-row { min-height: 72px; padding: 10px 12px; border: 1px solid transparent; border-top-color: var(--line); transition: 160ms ease; }
 .resource-row:hover { position: relative; z-index: 1; background: #f8fbfb; border-color: #cedcdf; border-radius: 12px; box-shadow: 0 8px 23px rgba(16, 47, 52, .06); }
 .resource-row.is-disabled { background: #fafbfb; }
@@ -434,7 +425,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--signal); outline
   .nav-icon { width: 23px; height: 23px; }
   main { display: block; padding: 28px 18px 58px; }
   .topbar { align-items: flex-start; }
-  .identity { display: none; }
   .overview-hero, .overview-grid { grid-template-columns: 1fr; }
   .overview-actions { border-top: 1px solid rgba(255, 255, 255, .1); border-left: 0; }
   .overview-routes { grid-row: auto; }
@@ -467,7 +457,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--signal); outline
   .directory-toolbar { display: grid; padding: 21px 18px 17px; }
   .directory-toolbar .muted { font-size: 11px; }
   .toolbar-actions { justify-content: space-between; }
-  .directory-count { min-width: 82px; }
   .vpn-tabs { padding: 11px 11px 0; }
   .vpn-tabs a { flex: 1; justify-content: space-between; padding: 10px 9px; }
   .peer-group { padding: 17px 11px 11px; }

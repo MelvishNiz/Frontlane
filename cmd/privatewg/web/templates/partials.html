@@ -7,6 +7,7 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#eef3f5">
   <title>{{.Title}} · Frontlane</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -55,7 +56,6 @@
       <div><p class="eyebrow">FRONTLANE / {{if eq .Section "routes"}}ROUTES{{else if eq .Section "endpoints"}}VPN CONNECTIONS{{else if eq .Section "access"}}ACCESS{{else}}OVERVIEW{{end}}</p><h1>{{.Title}}</h1></div>
       <div class="topbar-actions">
         <a class="traefik-button" href="/traefik/dashboard/" target="_blank" rel="noopener"><span class="traefik-mark">T</span><span>Traefik</span><svg><use href="#icon-open"></use></svg></a>
-        <div class="identity"><span class="live-pill {{if not .WG.Running}}is-offline{{end}}"><i></i> {{if .WG.Running}}Gateway active{{else}}Gateway offline{{end}}</span><small>{{.PanelDomain}}</small></div>
       </div>
     </header>
     <div class="toast-stack" aria-live="polite" aria-atomic="true">
