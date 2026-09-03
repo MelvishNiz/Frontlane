@@ -278,7 +278,7 @@ func TestServicesTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := rendered.String()
-	for _, expected := range []string{`<b>Routes</b>`, `<span>Public</span><span>Active</span>`, `href="https://app.example.com"`, `href="#icon-language"`, `id="service-edit-1"`, `action="/services/1"`} {
+	for _, expected := range []string{`<b>Routes</b>`, `<span>Public</span><span>Enabled</span>`, `href="https://app.example.com"`, `href="#icon-language"`, `id="service-edit-1"`, `action="/services/1"`} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("routes page missing %q", expected)
 		}

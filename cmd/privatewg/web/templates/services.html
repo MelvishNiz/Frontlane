@@ -13,7 +13,7 @@
 
   {{if .Services}}
   <div class="resource-list service-resource-list">
-    <div class="resource-header service-columns" aria-hidden="true"><span>Application</span><span>Upstream</span><span>DNS scope</span><span>Public</span><span>Active</span><span></span></div>
+    <div class="resource-header service-columns" aria-hidden="true"><span>Application</span><span>Upstream</span><span>DNS scope</span><span>Public</span><span>Enabled</span><span></span></div>
     {{range .Services}}
     <article class="resource-row service-columns {{if not .Enabled}}is-disabled{{end}}">
       <a class="resource-identity domain-identity" href="https://{{.Host}}" target="_blank" rel="noopener" aria-label="Open {{.Host}} in a new tab">

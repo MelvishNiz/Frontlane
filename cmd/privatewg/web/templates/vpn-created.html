@@ -13,7 +13,7 @@
   </div>
   <section class="peer-hero panel">
     <div class="peer-hero-title">
-      <span class="device-icon large {{.Peer.Kind}}"><i></i></span>
+      <span class="device-icon large {{.Peer.Kind}}"><svg aria-hidden="true"><use href="#icon-{{.Peer.Kind}}"></use></svg></span>
       <div><p class="eyebrow">{{if eq .Peer.Kind "client"}}CLIENT VPN DETAILS{{else}}SERVER VPN DETAILS{{end}}</p><h2>{{.Peer.Name}}</h2><p>Enrolled {{ago .Peer.CreatedAt}}</p></div>
     </div>
     <div class="peer-facts">

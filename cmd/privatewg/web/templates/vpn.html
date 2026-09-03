@@ -26,7 +26,7 @@
       {{end}}
       {{range .VPNPeers}}
       <article class="resource-row peer-columns {{if eq .Kind "server"}}server-peer-columns{{else}}client-peer-columns{{end}} {{if not .Enabled}}is-disabled{{end}}" data-peer-id="{{.ID}}">
-        <a class="resource-identity" href="/vpn/{{.ID}}"><span class="device-icon {{.Kind}}"><i></i></span><span><b>{{.Name}}</b><small>{{if .Note}}{{.Note}}{{else if eq .Kind "server"}}Upstream server{{else}}User device{{end}} · enrolled {{ago .CreatedAt}}</small></span></a>
+        <a class="resource-identity" href="/vpn/{{.ID}}"><span class="device-icon {{.Kind}}"><svg aria-hidden="true"><use href="#icon-{{.Kind}}"></use></svg></span><span><b>{{.Name}}</b><small>{{if .Note}}{{.Note}}{{else if eq .Kind "server"}}Upstream server{{else}}User device{{end}} · enrolled {{ago .CreatedAt}}</small></span></a>
         <code class="resource-address">{{.IP}}</code>
         {{if eq .Kind "client"}}<span class="peer-access">{{range $i, $name := .RoleNames}}{{if $i}}, {{end}}{{$name}}{{else}}No access{{end}}</span>{{end}}
         <span class="peer-state {{if and .Enabled .Active}}online{{end}}" data-peer-state><i></i><span><b data-peer-state-text>{{if not .Enabled}}Paused{{else if .Active}}Connected{{else}}Idle{{end}}</b><small>Seen <span data-peer-handshake data-timestamp="{{unix .LastHandshake}}">{{ago .LastHandshake}}</span></small></span></span>
