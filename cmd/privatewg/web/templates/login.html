@@ -1,16 +1,19 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Sign in · Frontlane</title><link rel="stylesheet" href="/static/app.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="theme-color" content="#071a3a"><title>Sign in · Frontlane</title><link rel="stylesheet" href="/static/app.css"></head>
 <body class="login-page">
 <main class="login-card">
-  <div class="login-signal"><span></span><span></span><span></span></div>
-  <p class="eyebrow">APPLICATION ACCESS GATEWAY</p><h1>Frontlane</h1><p>Publish and protect self-hosted applications from one control plane.</p>
-  {{if .Error}}<div class="alert error" role="alert">{{.Error}}</div>{{end}}
-  <form method="post" action="/login" class="stack-form">
-    <label>Username<input name="username" required autocomplete="username" autofocus></label>
-    <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
-    <button class="primary" type="submit">Sign in</button>
-  </form>
+  <a class="login-brand" href="/login" aria-label="Frontlane sign in"><span class="brand-mark"><i></i><i></i><i></i></span><span><b>Frontlane</b><small>Gateway control plane</small></span></a>
+  <section class="login-form-panel">
+    <div><p class="eyebrow">SECURE ADMIN ACCESS</p><h1>Sign in</h1><p>Manage your gateway, routes, and private connections.</p></div>
+    {{if .Error}}<div class="login-error" role="alert">{{.Error}}</div>{{end}}
+    <form method="post" action="/login" class="stack-form">
+      <label>Username<input name="username" required autocomplete="username" autofocus></label>
+      <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+      <button class="primary" type="submit">Sign in</button>
+    </form>
+    <small class="login-footnote">Protected session · Expires after 12 hours</small>
+  </section>
 </main>
 </body>
 </html>

@@ -304,16 +304,16 @@ func routeErrorPage(w http.ResponseWriter, r *http.Request) {
 	}
 	title := "Application unreachable"
 	label := "UPSTREAM OFFLINE"
-	message := "The tunnel is active, but the application server is not responding. Check the peer and service on the target server."
+	message := "The gateway accepted this request, but the application upstream did not respond. Check the route target and its endpoint."
 	switch status {
 	case http.StatusForbidden:
 		title = "Access denied"
-		label = "ROLE REQUIRED"
-		message = "This device is not authorized for this domain. Connect an enabled WireGuard peer with a shared role."
+		label = "POLICY REQUIRED"
+		message = "This VPN connection is not authorized for this application. Connect through an enabled VPN connection with matching access."
 	case http.StatusServiceUnavailable:
 		title = "Route paused"
 		label = "ROUTE PAUSED"
-		message = "This domain has been temporarily disabled by the network administrator."
+		message = "This application route has been paused by the gateway administrator."
 	case http.StatusBadGateway, http.StatusGatewayTimeout:
 	default:
 		http.NotFound(w, r)
@@ -325,7 +325,7 @@ func routeErrorPage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>%s - Frontlane</title>
-<style>:root{color:#163044;background:#eef5f7;font-family:ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15%% 12%%,#d5f1ec 0,transparent 28rem),radial-gradient(circle at 85%% 90%%,#dbe8f5 0,transparent 30rem),#eef5f7}.card{width:min(620px,100%%);padding:48px;background:#ffffffea;border:1px solid #cfdee5;border-radius:26px;box-shadow:0 28px 80px #17384c1a}.signal{display:flex;gap:4px;align-items:end;height:25px;margin-bottom:32px}.signal i{display:block;width:5px;background:#12a99b;border-radius:4px}.signal i:nth-child(1){height:9px}.signal i:nth-child(2){height:16px}.signal i:nth-child(3){height:24px;opacity:.3}.label{color:#07877e;font:700 11px ui-monospace,monospace;letter-spacing:.16em}h1{margin:12px 0 14px;color:#0b2942;font-size:clamp(34px,7vw,56px);line-height:1;letter-spacing:-.045em}p{margin:0;color:#627b8c;font-size:16px;line-height:1.7}.meta{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid #dce7ee;color:#77909f;font:11px ui-monospace,monospace}@media(max-width:520px){.card{padding:32px 25px}.meta{display:grid}}</style></head>
+<style>:root{color:#183136;background:#eef3f5;font-family:"Avenir Next","Segoe UI Variable",sans-serif}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15%% 12%%,#d7eee9 0,transparent 28rem),radial-gradient(circle at 85%% 90%%,#f7ddd3 0,transparent 30rem),#eef3f5}.card{width:min(620px,100%%);padding:48px;background:#ffffffea;border:1px solid #cfdee5;border-radius:20px;box-shadow:0 28px 80px #102f341f}.signal{display:flex;gap:4px;align-items:end;height:25px;margin-bottom:32px}.signal i{display:block;width:5px;background:#ed6a43;border-radius:4px}.signal i:nth-child(1){height:9px}.signal i:nth-child(2){height:16px}.signal i:nth-child(3){height:24px;opacity:.3}.label{color:#c94e2e;font:700 11px ui-monospace,monospace;letter-spacing:.16em}h1{margin:12px 0 14px;color:#102f34;font-family:Georgia,"Times New Roman",serif;font-size:clamp(34px,7vw,56px);font-weight:500;line-height:1;letter-spacing:-.045em}p{margin:0;color:#526b6f;font-size:16px;line-height:1.7}.meta{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid #dce7ee;color:#77909f;font:11px ui-monospace,monospace}@media(max-width:520px){.card{padding:32px 25px}.meta{display:grid}}</style></head>
 <body><main class="card"><div class="signal" aria-hidden="true"><i></i><i></i><i></i></div><span class="label">%s - %d</span><h1>%s</h1><p>%s</p><div class="meta"><span>Frontlane application edge</span><span>HTTP %d</span></div></main></body></html>`, title, label, status, title, message, status)
 }
 

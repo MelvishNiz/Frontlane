@@ -59,26 +59,32 @@ type session struct {
 }
 
 type viewData struct {
-	Title        string
-	User         string
-	CSRF         string
-	Error        string
-	Notice       string
-	Peers        []peer
-	Services     []service
-	WG           wgStatus
-	Config       string
-	PanelDomain  string
-	BaseDomain   string
-	Endpoint     string
-	Peer         peer
-	PeerCreated  bool
-	ConfigStored bool
-	Roles        []role
-	Role         role
-	FormHost     string
-	FormTarget   string
-	FormAccess   string
+	Title         string
+	Section       string
+	User          string
+	CSRF          string
+	Error         string
+	Notice        string
+	Peers         []peer
+	ClientPeers   []peer
+	ServerPeers   []peer
+	VPNPeers      []peer
+	VPNTab        string
+	Services      []service
+	WG            wgStatus
+	Config        string
+	PanelDomain   string
+	BaseDomain    string
+	Endpoint      string
+	Peer          peer
+	PeerCreated   bool
+	ConfigStored  bool
+	Roles         []role
+	Role          role
+	FormHost      string
+	FormTarget    string
+	FormAccess    string
+	FormServiceID int64
 }
 
 func main() {
@@ -136,16 +142,17 @@ func main() {
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.auth(s.logout))
 	mux.HandleFunc("GET /{$}", s.auth(s.dashboard))
-	mux.HandleFunc("GET /peers", s.auth(s.peersPage))
-	mux.HandleFunc("POST /peers", s.auth(s.createPeer))
-	mux.HandleFunc("GET /peers/{id}", s.auth(s.peerDetail))
-	mux.HandleFunc("GET /__privatewg/api/peers/status", s.auth(s.peerStatuses))
-	mux.HandleFunc("GET /peers/{id}/config", s.auth(s.downloadPeerConfig))
-	mux.HandleFunc("GET /peers/{id}/qr.png", s.auth(s.peerQRCode))
-	mux.HandleFunc("POST /peers/{id}/toggle", s.auth(s.togglePeer))
-	mux.HandleFunc("POST /peers/{id}/delete", s.auth(s.deletePeer))
+	mux.HandleFunc("GET /vpn", s.auth(s.peersPage))
+	mux.HandleFunc("POST /vpn", s.auth(s.createPeer))
+	mux.HandleFunc("GET /vpn/{id}", s.auth(s.peerDetail))
+	mux.HandleFunc("GET /__privatewg/api/vpn/status", s.auth(s.peerStatuses))
+	mux.HandleFunc("GET /vpn/{id}/config", s.auth(s.downloadPeerConfig))
+	mux.HandleFunc("GET /vpn/{id}/qr.png", s.auth(s.peerQRCode))
+	mux.HandleFunc("POST /vpn/{id}/toggle", s.auth(s.togglePeer))
+	mux.HandleFunc("POST /vpn/{id}/delete", s.auth(s.deletePeer))
 	mux.HandleFunc("GET /services", s.auth(s.servicesPage))
 	mux.HandleFunc("POST /services", s.auth(s.createService))
+	mux.HandleFunc("POST /services/{id}", s.auth(s.updateService))
 	mux.HandleFunc("POST /services/{id}/toggle", s.auth(s.toggleService))
 	mux.HandleFunc("POST /services/{id}/access", s.auth(s.setServiceAccess))
 	mux.HandleFunc("POST /services/{id}/delete", s.auth(s.deleteService))
@@ -231,16 +238,38 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	peers, _ := s.store.listPeers()
 	services, _ := s.store.listServices()
 	status, _ := s.wireGuardStatus(peers)
-	s.render(w, "dashboard.html", s.data(r, "Overview", peers, services, status))
+	s.render(w, "dashboard.html", s.data(r, "Gateway overview", peers, services, status))
 }
 
 func (s *server) peersPage(w http.ResponseWriter, r *http.Request) {
 	peers, _ := s.store.listPeers()
 	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
-	data := s.data(r, "Network", peers, nil, status)
+	data := s.data(r, "VPN connections", peers, nil, status)
+	data.ClientPeers, data.ServerPeers = splitPeers(peers)
+	data.VPNTab = r.FormValue("kind")
+	if data.VPNTab == "" {
+		data.VPNTab = r.URL.Query().Get("tab")
+	}
+	if data.VPNTab == "server" {
+		data.VPNPeers = data.ServerPeers
+	} else {
+		data.VPNTab = "client"
+		data.VPNPeers = data.ClientPeers
+	}
 	data.Roles = roles
-	s.render(w, "peers.html", data)
+	s.render(w, "vpn.html", data)
+}
+
+func splitPeers(peers []peer) (clients, servers []peer) {
+	for _, p := range peers {
+		if p.Kind == "server" {
+			servers = append(servers, p)
+		} else {
+			clients = append(clients, p)
+		}
+	}
+	return clients, servers
 }
 
 func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +283,7 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 	kind := r.FormValue("kind")
 	roleIDs, err := parseFormIDs(r.Form["role_ids"])
 	if !peerNamePattern.MatchString(name) || (kind != "client" && kind != "server") || err != nil || len(roleIDs) == 0 {
-		s.peerError(w, r, "Invalid peer name, type, or role. Select at least one role.", http.StatusBadRequest)
+		s.peerError(w, r, "Invalid VPN name, type, or access. Select at least one access.", http.StatusBadRequest)
 		return
 	}
 	privateKey, publicKey, err := generateKeyPair()
@@ -276,7 +305,7 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.deletePeer(p.ID)
 		_ = s.applyWireGuard()
 		_ = s.writeRoutingFiles()
-		s.peerError(w, r, "Peer access routes could not be applied: "+err.Error(), http.StatusInternalServerError)
+		s.peerError(w, r, "VPN access could not be applied: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	clientConfig := s.clientConfig(p, privateKey)
@@ -284,11 +313,11 @@ func (s *server) createPeer(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.deletePeer(p.ID)
 		_ = s.applyWireGuard()
 		_ = s.writeRoutingFiles()
-		s.peerError(w, r, "Peer configuration could not be saved: "+err.Error(), http.StatusInternalServerError)
+		s.peerError(w, r, "Endpoint credential could not be saved: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("peer.create", p.Name+" "+p.IP, clientIP(r))
-	http.Redirect(w, r, fmt.Sprintf("/peers/%d?created=1", p.ID), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/vpn/%d?created=1", p.ID), http.StatusSeeOther)
 }
 
 func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +328,7 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	peers, err := s.store.listPeers()
 	if err != nil {
-		http.Error(w, "Peer could not be loaded", http.StatusInternalServerError)
+		http.Error(w, "Endpoint could not be loaded", http.StatusInternalServerError)
 		return
 	}
 	status, _ := s.wireGuardStatus(peers)
@@ -314,7 +343,11 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data := s.data(r, "Network peer", peers, nil, status)
+	title := "Client VPN details"
+	if selected.Kind == "server" {
+		title = "Server VPN details"
+	}
+	data := s.data(r, title, peers, nil, status)
 	data.Peer = *selected
 	data.PeerCreated = r.URL.Query().Get("created") == "1"
 	data.ConfigStored = selected.HasConfig
@@ -325,7 +358,7 @@ func (s *server) peerDetail(w http.ResponseWriter, r *http.Request) {
 			data.ConfigStored = false
 		}
 	}
-	s.render(w, "peer-created.html", data)
+	s.render(w, "vpn-created.html", data)
 }
 
 type peerStatusResponse struct {
@@ -340,7 +373,7 @@ type peerStatusResponse struct {
 func (s *server) peerStatuses(w http.ResponseWriter, r *http.Request) {
 	peers, err := s.store.listPeers()
 	if err != nil {
-		http.Error(w, "Peer status could not be loaded", http.StatusInternalServerError)
+		http.Error(w, "Endpoint status could not be loaded", http.StatusInternalServerError)
 		return
 	}
 	if _, err := s.wireGuardStatus(peers); err != nil {
@@ -414,7 +447,7 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	p, err := s.store.peerByID(id)
 	if err != nil {
-		http.Error(w, "Peer not found", http.StatusNotFound)
+		http.Error(w, "Endpoint not found", http.StatusNotFound)
 		return
 	}
 	if err := s.store.setPeerEnabled(id, !p.Enabled); err != nil {
@@ -424,14 +457,14 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 	if err := s.applyWireGuard(); err != nil {
 		_ = s.store.setPeerEnabled(id, p.Enabled)
 		_ = s.applyWireGuard()
-		http.Error(w, "Peer status could not be changed: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Endpoint status could not be changed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.setPeerEnabled(id, p.Enabled)
 		_ = s.applyWireGuard()
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Peer access routes could not be changed: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "VPN access could not be changed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	state := "disabled"
@@ -440,10 +473,16 @@ func (s *server) togglePeer(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.audit("peer.toggle", p.Name+" "+state, clientIP(r))
 	next := r.FormValue("next")
-	if next != fmt.Sprintf("/peers/%d", id) {
-		next = "/peers"
+	detailURL := fmt.Sprintf("/vpn/%d", id)
+	listURL := "/vpn?tab=" + p.Kind
+	if next != detailURL && next != listURL {
+		next = listURL
 	}
-	http.Redirect(w, r, next+"?notice=Peer+"+state, http.StatusSeeOther)
+	separator := "?"
+	if strings.Contains(next, "?") {
+		separator = "&"
+	}
+	http.Redirect(w, r, next+separator+"notice=VPN+"+state, http.StatusSeeOther)
 }
 
 func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
@@ -456,7 +495,7 @@ func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	old, err := s.store.peerByID(id)
 	if err != nil {
-		http.Error(w, "Peer not found", http.StatusNotFound)
+		http.Error(w, "Endpoint not found", http.StatusNotFound)
 		return
 	}
 	roleIDs, err := s.store.peerRoleIDs(id)
@@ -471,23 +510,25 @@ func (s *server) deletePeer(w http.ResponseWriter, r *http.Request) {
 	if err := s.applyWireGuard(); err != nil {
 		_ = s.store.restorePeer(old, roleIDs)
 		_ = s.applyWireGuard()
-		http.Error(w, "Peer could not be deleted: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Endpoint could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.restorePeer(old, roleIDs)
 		_ = s.applyWireGuard()
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Peer access routes could not be deleted: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "VPN access could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("peer.delete", old.Name+" "+old.IP, clientIP(r))
-	http.Redirect(w, r, "/peers?notice=Peer+deleted", http.StatusSeeOther)
+	http.Redirect(w, r, "/vpn?tab="+old.Kind+"&notice=VPN+deleted", http.StatusSeeOther)
 }
 
 func (s *server) servicesPage(w http.ResponseWriter, r *http.Request) {
+	peers, _ := s.store.listPeers()
 	services, _ := s.store.listServices()
-	s.render(w, "services.html", s.data(r, "Application routes", nil, services, wgStatus{}))
+	status, _ := s.wireGuardStatus(peers)
+	s.render(w, "services.html", s.data(r, "Routes", nil, services, status))
 }
 
 func (s *server) createService(w http.ResponseWriter, r *http.Request) {
@@ -530,7 +571,50 @@ func (s *server) createService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.store.audit("service.create", svc.Host+" "+svc.Target, clientIP(r))
-	http.Redirect(w, r, "/services?notice=Service+added", http.StatusSeeOther)
+	http.Redirect(w, r, "/services?notice=Route+published", http.StatusSeeOther)
+}
+
+func (s *server) updateService(w http.ResponseWriter, r *http.Request) {
+	if !s.validCSRF(r) {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	host := strings.ToLower(strings.TrimSpace(r.FormValue("host")))
+	target := strings.TrimSpace(r.FormValue("target"))
+	if err := validateService(host, target, s.cfg.BaseDomain); err != nil {
+		s.serviceFormError(w, r, id, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+	old, err := s.store.serviceByID(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if old.Public {
+		if err := validatePublicTarget(target, s.cfg.Listen); err != nil {
+			s.serviceFormError(w, r, id, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if err := s.store.updateService(id, host, target); err != nil {
+		s.serviceFormError(w, r, id, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.writeRoutingFiles(); err != nil {
+		_ = s.store.updateService(id, old.Host, old.Target)
+		_ = s.writeRoutingFiles()
+		s.serviceFormError(w, r, id, "Proxy configuration rejected: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.store.audit("service.update", host+" "+target, clientIP(r))
+	http.Redirect(w, r, "/services?notice=Route+updated", http.StatusSeeOther)
 }
 
 func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
@@ -543,7 +627,7 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	svc, err := s.store.serviceByID(id)
 	if err != nil {
-		http.Error(w, "Service not found", http.StatusNotFound)
+		http.Error(w, "Application route not found", http.StatusNotFound)
 		return
 	}
 	if err := s.store.setServiceEnabled(id, !svc.Enabled); err != nil {
@@ -553,7 +637,7 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.setServiceEnabled(id, svc.Enabled)
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Domain status could not be changed: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Application route status could not be changed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	state := "disabled"
@@ -561,7 +645,7 @@ func (s *server) toggleService(w http.ResponseWriter, r *http.Request) {
 		state = "enabled"
 	}
 	s.store.audit("service.toggle", svc.Host+" "+state, clientIP(r))
-	http.Redirect(w, r, "/services?notice=Domain+"+state, http.StatusSeeOther)
+	http.Redirect(w, r, "/services?notice=Application+route+"+state, http.StatusSeeOther)
 }
 
 func (s *server) setServiceAccess(w http.ResponseWriter, r *http.Request) {
@@ -574,7 +658,7 @@ func (s *server) setServiceAccess(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	svc, err := s.store.serviceByID(id)
 	if err != nil {
-		http.Error(w, "Service not found", http.StatusNotFound)
+		http.Error(w, "Application route not found", http.StatusNotFound)
 		return
 	}
 	access := r.FormValue("access")
@@ -617,7 +701,7 @@ func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	old, err := s.store.serviceByID(id)
 	if err != nil {
-		http.Error(w, "Service not found", http.StatusNotFound)
+		http.Error(w, "Application route not found", http.StatusNotFound)
 		return
 	}
 	roleIDs, err := s.store.serviceRoleIDs(id)
@@ -632,11 +716,11 @@ func (s *server) deleteService(w http.ResponseWriter, r *http.Request) {
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.restoreService(old, roleIDs)
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Service could not be deleted: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Application route could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("service.delete", old.Host+" "+old.Target, clientIP(r))
-	http.Redirect(w, r, "/services?notice=Service+deleted", http.StatusSeeOther)
+	http.Redirect(w, r, "/services?notice=Application+route+deleted", http.StatusSeeOther)
 }
 
 func (s *server) rolesPage(w http.ResponseWriter, r *http.Request) {
@@ -663,26 +747,28 @@ func (s *server) createRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
-	peerIDs, serviceIDs, err := roleFormAssignments(r)
+	serviceIDs, err := roleFormServiceIDs(r)
 	if !roleNamePattern.MatchString(name) || err != nil {
-		s.renderRoles(w, r, role{}, "Invalid role name or assignment.", http.StatusBadRequest)
+		s.renderRoles(w, r, role{}, "Invalid access name or route assignment.", http.StatusBadRequest)
 		return
 	}
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
-	created, err := s.store.createRole(name, peerIDs, serviceIDs)
+	created, err := s.store.createRole(name, nil, serviceIDs)
 	if err != nil {
-		s.renderRoles(w, r, role{}, err.Error(), http.StatusBadRequest)
+		selected := role{Name: name, PeerIDs: map[int64]bool{}, ServiceIDs: boolIDs(serviceIDs)}
+		s.renderRoles(w, r, selected, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := s.writeRoutingFiles(); err != nil {
 		_, _ = s.store.deleteRole(created.ID)
 		_ = s.writeRoutingFiles()
-		s.renderRoles(w, r, role{}, "Role routes could not be applied: "+err.Error(), http.StatusInternalServerError)
+		selected := role{Name: name, PeerIDs: map[int64]bool{}, ServiceIDs: boolIDs(serviceIDs)}
+		s.renderRoles(w, r, selected, "Access could not be applied: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("role.create", created.Name, clientIP(r))
-	http.Redirect(w, r, fmt.Sprintf("/roles/%d?notice=Role+created", created.ID), http.StatusSeeOther)
+	http.Redirect(w, r, "/roles?notice=Access+created", http.StatusSeeOther)
 }
 
 func (s *server) updateRole(w http.ResponseWriter, r *http.Request) {
@@ -696,9 +782,10 @@ func (s *server) updateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
-	peerIDs, serviceIDs, err := roleFormAssignments(r)
+	serviceIDs, err := roleFormServiceIDs(r)
 	if !roleNamePattern.MatchString(name) || err != nil {
-		http.Error(w, "Invalid role name or assignment.", http.StatusBadRequest)
+		selected := role{ID: id, Name: name, PeerIDs: map[int64]bool{}, ServiceIDs: boolIDs(serviceIDs)}
+		s.renderRoles(w, r, selected, "Invalid access name or route assignment.", http.StatusBadRequest)
 		return
 	}
 	s.applyMu.Lock()
@@ -708,18 +795,20 @@ func (s *server) updateRole(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.store.replaceRole(id, name, peerIDs, serviceIDs); err != nil {
-		s.renderRoles(w, r, old, err.Error(), http.StatusBadRequest)
+	if err := s.store.replaceRole(id, name, setIDs(old.PeerIDs), serviceIDs); err != nil {
+		selected := role{ID: id, Name: name, PeerIDs: old.PeerIDs, ServiceIDs: boolIDs(serviceIDs)}
+		s.renderRoles(w, r, selected, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.replaceRole(old.ID, old.Name, setIDs(old.PeerIDs), setIDs(old.ServiceIDs))
 		_ = s.writeRoutingFiles()
-		s.renderRoles(w, r, old, "Role routes could not be applied: "+err.Error(), http.StatusInternalServerError)
+		selected := role{ID: id, Name: name, PeerIDs: old.PeerIDs, ServiceIDs: boolIDs(serviceIDs)}
+		s.renderRoles(w, r, selected, "Access could not be applied: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("role.update", name, clientIP(r))
-	http.Redirect(w, r, fmt.Sprintf("/roles/%d?notice=Role+updated", id), http.StatusSeeOther)
+	http.Redirect(w, r, "/roles?notice=Access+updated", http.StatusSeeOther)
 }
 
 func (s *server) deleteRole(w http.ResponseWriter, r *http.Request) {
@@ -742,23 +831,26 @@ func (s *server) deleteRole(w http.ResponseWriter, r *http.Request) {
 	if err := s.writeRoutingFiles(); err != nil {
 		_ = s.store.restoreRole(old)
 		_ = s.writeRoutingFiles()
-		http.Error(w, "Role could not be deleted: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Access could not be deleted: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.store.audit("role.delete", old.Name, clientIP(r))
-	http.Redirect(w, r, "/roles?notice=Role+deleted", http.StatusSeeOther)
+	http.Redirect(w, r, "/roles?notice=Access+deleted", http.StatusSeeOther)
 }
 
-func roleFormAssignments(r *http.Request) ([]int64, []int64, error) {
+func roleFormServiceIDs(r *http.Request) ([]int64, error) {
 	if err := r.ParseForm(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	peerIDs, err := parseFormIDs(r.Form["peer_ids"])
-	if err != nil {
-		return nil, nil, err
+	return parseFormIDs(r.Form["service_ids"])
+}
+
+func boolIDs(ids []int64) map[int64]bool {
+	result := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		result[id] = true
 	}
-	serviceIDs, err := parseFormIDs(r.Form["service_ids"])
-	return peerIDs, serviceIDs, err
+	return result
 }
 
 func parseFormIDs(values []string) ([]int64, error) {
@@ -781,31 +873,50 @@ func (s *server) renderRoles(w http.ResponseWriter, r *http.Request, selected ro
 	peers, peersErr := s.store.listPeers()
 	services, servicesErr := s.store.listServices()
 	if rolesErr != nil || peersErr != nil || servicesErr != nil {
-		http.Error(w, "Roles could not be loaded", http.StatusInternalServerError)
+		http.Error(w, "Accesses could not be loaded", http.StatusInternalServerError)
 		return
 	}
-	data := s.data(r, "Roles", peers, services, wgStatus{})
+	gatewayStatus, _ := s.wireGuardStatus(peers)
+	data := s.data(r, "Accesses", peers, services, gatewayStatus)
 	data.Roles, data.Role, data.Error = roles, selected, message
-	s.renderStatus(w, "roles.html", data, statusCode)
+	s.renderStatus(w, "access.html", data, statusCode)
 }
 
 func (s *server) peerError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
 	peers, _ := s.store.listPeers()
 	roles, _ := s.store.listRoles()
 	status, _ := s.wireGuardStatus(peers)
-	data := s.data(r, "Network", peers, nil, status)
+	data := s.data(r, "VPN connections", peers, nil, status)
+	data.ClientPeers, data.ServerPeers = splitPeers(peers)
+	data.VPNTab = r.FormValue("kind")
+	if data.VPNTab == "" {
+		data.VPNTab = r.URL.Query().Get("tab")
+	}
+	if data.VPNTab == "server" {
+		data.VPNPeers = data.ServerPeers
+	} else {
+		data.VPNTab = "client"
+		data.VPNPeers = data.ClientPeers
+	}
 	data.Roles = roles
 	data.Error = message
-	s.renderStatus(w, "peers.html", data, statusCode)
+	s.renderStatus(w, "vpn.html", data, statusCode)
 }
 
 func (s *server) serviceError(w http.ResponseWriter, r *http.Request, message string, statusCode int) {
+	s.serviceFormError(w, r, 0, message, statusCode)
+}
+
+func (s *server) serviceFormError(w http.ResponseWriter, r *http.Request, serviceID int64, message string, statusCode int) {
+	peers, _ := s.store.listPeers()
 	services, _ := s.store.listServices()
-	data := s.data(r, "Application routes", nil, services, wgStatus{})
+	gatewayStatus, _ := s.wireGuardStatus(peers)
+	data := s.data(r, "Routes", nil, services, gatewayStatus)
 	data.Error = message
 	data.FormHost = strings.TrimSpace(r.FormValue("host"))
 	data.FormTarget = strings.TrimSpace(r.FormValue("target"))
 	data.FormAccess = r.FormValue("access")
+	data.FormServiceID = serviceID
 	if data.FormAccess == "" {
 		data.FormAccess = "private"
 	}
@@ -814,8 +925,17 @@ func (s *server) serviceError(w http.ResponseWriter, r *http.Request, message st
 
 func (s *server) data(r *http.Request, title string, peers []peer, services []service, status wgStatus) viewData {
 	sess, _ := s.currentSession(r)
+	section := "overview"
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/vpn"):
+		section = "endpoints"
+	case strings.HasPrefix(r.URL.Path, "/services"):
+		section = "routes"
+	case strings.HasPrefix(r.URL.Path, "/roles"):
+		section = "access"
+	}
 	return viewData{
-		Title: title, User: s.cfg.AdminUser, CSRF: sess.CSRF, Peers: peers, Services: services, WG: status,
+		Title: title, Section: section, User: s.cfg.AdminUser, CSRF: sess.CSRF, Peers: peers, Services: services, WG: status,
 		Notice: r.URL.Query().Get("notice"), PanelDomain: "panel." + s.cfg.BaseDomain,
 		BaseDomain: s.cfg.BaseDomain, Endpoint: s.cfg.PublicEndpoint,
 	}

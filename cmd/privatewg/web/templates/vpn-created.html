@@ -1,0 +1,53 @@
+{{template "header" .}}
+<div class="peer-detail" data-peer-id="{{.Peer.ID}}">
+  <div class="detail-toolbar">
+    <a class="back-link" href="/vpn?tab={{.Peer.Kind}}"><svg class="icon" aria-hidden="true"><use href="#icon-back"></use></svg> All {{.Peer.Kind}} VPNs</a>
+    <div class="detail-access">
+      <span class="peer-state {{if and .Peer.Enabled .Peer.Active}}online{{end}}" data-peer-state><i></i><span data-peer-state-text>{{if not .Peer.Enabled}}Access paused{{else if .Peer.Active}}Connected{{else}}Idle{{end}}</span></span>
+      <form method="post" action="/vpn/{{.Peer.ID}}/toggle">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="next" value="/vpn/{{.Peer.ID}}">
+        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Peer.Enabled}}" aria-label="{{if .Peer.Enabled}}Disable{{else}}Enable{{end}} {{.Peer.Kind}} VPN {{.Peer.Name}}"><span></span></button>
+      </form>
+    </div>
+  </div>
+  <section class="peer-hero panel">
+    <div class="peer-hero-title">
+      <span class="device-icon large {{.Peer.Kind}}"><i></i></span>
+      <div><p class="eyebrow">{{if eq .Peer.Kind "client"}}CLIENT VPN DETAILS{{else}}SERVER VPN DETAILS{{end}}</p><h2>{{.Peer.Name}}</h2><p>Enrolled {{ago .Peer.CreatedAt}}</p></div>
+    </div>
+    <div class="peer-facts">
+      <div><small>Gateway identity</small><code>{{.Peer.IP}} / 32</code></div>
+      <div><small>Last gateway session</small><strong data-peer-handshake data-timestamp="{{unix .Peer.LastHandshake}}">{{ago .Peer.LastHandshake}}</strong></div>
+      <div><small>Inbound traffic</small><strong data-peer-rx>{{bytes .Peer.ReceivedBytes}}</strong></div>
+      <div><small>Outbound traffic</small><strong data-peer-tx>{{bytes .Peer.TransmittedBytes}}</strong></div>
+    </div>
+  </section>
+
+  {{if .ConfigStored}}
+  {{if .PeerCreated}}<div class="onboarding-callout"><span><svg><use href="#icon-check"></use></svg></span><div><b>Endpoint ready to enroll</b><p>Use one credential method below. Treat this configuration as a secret.</p></div></div>{{end}}
+  <div class="credential-grid">
+    <section class="panel qr-panel">
+      <div class="panel-head"><div><p class="eyebrow">MOBILE CREDENTIAL</p><h2>Scan to connect</h2></div><span class="secure-chip">Encrypted</span></div>
+      <div class="qr-frame"><img src="/vpn/{{.Peer.ID}}/qr.png" alt="WireGuard gateway credential QR code for {{.Peer.Name}}" width="320" height="320"></div>
+      <p class="qr-help">Open WireGuard, choose <b>Scan from QR code</b>, then connect this endpoint to the Frontlane gateway.</p>
+    </section>
+    <section class="panel config-panel">
+      <div class="panel-head"><div><p class="eyebrow">DESKTOP CREDENTIAL</p><h2>Gateway configuration</h2></div></div>
+      <div class="config-actions">
+        <a class="primary download-button" href="/vpn/{{.Peer.ID}}/config"><svg class="download-icon" aria-hidden="true"><use href="#icon-download"></use></svg><span><b>Download credential</b><small>{{.Peer.Name}}.conf</small></span></a>
+        <button class="secondary copy-button" type="button" data-copy-target="peer-config"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy credential</button>
+      </div>
+      <label class="config-label" for="peer-config">WireGuard transport configuration</label>
+      <div class="code-window"><div class="code-window-bar"><span></span><span></span><span></span><small>gateway.conf</small></div><textarea id="peer-config" readonly rows="14" spellcheck="false">{{.Config}}</textarea></div>
+      <div class="key-note"><span><svg><use href="#icon-shield"></use></svg></span><p><b>Credential encrypted at rest</b><small>AES-256-GCM protects this configuration using the gateway transport key.</small></p></div>
+    </section>
+  </div>
+  {{else}}
+  <section class="panel legacy-config">
+    <span class="legacy-icon">!</span>
+    <div><p class="eyebrow">LEGACY ENDPOINT</p><h2>Credential unavailable</h2><p>This endpoint predates encrypted credential storage. Its private key cannot be reconstructed.</p><p>Delete and re-enroll this endpoint to generate a QR code and downloadable credential.</p></div>
+  </section>
+  {{end}}
+</div>
+{{template "footer" .}}

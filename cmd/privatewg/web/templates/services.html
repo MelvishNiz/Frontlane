@@ -2,71 +2,85 @@
 <section class="directory-shell">
   <div class="directory-toolbar">
     <div>
-      <p class="eyebrow">APPLICATION ROUTES</p>
-      <h2>Domains & targets</h2>
-      <p class="muted">Publish applications openly or restrict them to authorized network peers.</p>
+      <p class="eyebrow">DELIVERY / ROUTES</p>
+      <h2>Domains to upstreams</h2>
+      <p class="muted">Publish applications through one TLS edge, then choose public or policy-gated access.</p>
     </div>
     <div class="toolbar-actions">
-      <span class="directory-count"><b>{{len .Services}}</b><small>registered routes</small></span>
-      <button class="primary" type="button" data-dialog-open="service-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add domain</button>
+      <span class="directory-count"><b>{{len .Services}}</b><small>gateway routes</small></span>
+      <button class="primary" type="button" data-dialog-open="service-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add route</button>
     </div>
   </div>
 
-  <aside class="dns-note">
-    <span class="dns-note-icon">TLS</span>
-    <p><b>Point each domain to this server.</b><small>Traefik issues certificates automatically. Public routes are open to the Internet; authentication must be provided by the upstream application.</small></p>
-  </aside>
-
   {{if .Services}}
   <div class="resource-list service-resource-list">
-    <div class="resource-header service-columns" aria-hidden="true"><span>Domain</span><span>Upstream target</span><span>Scope</span><span>Visibility</span><span>Status</span><span></span></div>
+    <div class="resource-header service-columns" aria-hidden="true"><span>Application</span><span>Upstream</span><span>DNS scope</span><span>Public</span><span>Active</span><span></span></div>
     {{range .Services}}
     <article class="resource-row service-columns {{if not .Enabled}}is-disabled{{end}}">
-      <div class="resource-identity domain-identity">
-        <span class="domain-icon">https</span>
-        <span><b>{{.Host}}</b><small>{{if .Enabled}}Route active{{else}}Route paused{{end}} · created {{ago .CreatedAt}}</small></span>
-      </div>
+      <a class="resource-identity domain-identity" href="https://{{.Host}}" target="_blank" rel="noopener" aria-label="Open {{.Host}} in a new tab">
+        <span class="domain-icon"><svg aria-hidden="true"><use href="#icon-language"></use></svg></span>
+        <span><b>{{.Host}} <svg class="domain-open-icon" aria-hidden="true"><use href="#icon-open"></use></svg></b><small>{{if .Enabled}}Serving traffic{{else}}Route paused{{end}} · added {{ago .CreatedAt}}</small></span>
+      </a>
       <code class="target-chip">{{.Target}}</code>
-      <span class="scope-badge {{if not (internalDomain .Host)}}external{{end}}">{{if internalDomain .Host}}Internal{{else}}External{{end}}</span>
-      <form method="post" action="/services/{{.ID}}/access" class="access-form" {{if not .Public}}data-confirm="Make {{.Host}} public? Anyone on the Internet can reach its upstream application. Frontlane will not add authentication."{{end}}>
+      <span class="scope-badge {{if not (internalDomain .Host)}}external{{end}}">{{if internalDomain .Host}}Managed{{else}}External{{end}}</span>
+      <form method="post" action="/services/{{.ID}}/access" class="toggle-form public-form" {{if not .Public}}data-confirm="Expose {{.Host}} publicly? Anyone on the Internet can reach its upstream. Frontlane does not add application authentication." data-confirm-title="Make route public?" data-confirm-action="Make public"{{end}}>
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="access" value="{{if .Public}}private{{else}}public{{end}}">
-        <button class="access-badge {{if .Public}}public{{end}}" type="submit" aria-label="Change {{.Host}} to {{if .Public}}private{{else}}public{{end}} access">{{if .Public}}Public{{else}}Private{{end}}</button>
+        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Public}}" aria-label="Make route {{.Host}} {{if .Public}}private{{else}}public{{end}}"><span></span></button>
       </form>
       <form method="post" action="/services/{{.ID}}/toggle" class="toggle-form">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} domain {{.Host}}"><span></span></button>
+        <button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Pause{{else}}Enable{{end}} route {{.Host}}"><span></span></button>
       </form>
       <div class="row-actions">
-        <a class="row-detail" href="https://{{.Host}}" target="_blank" rel="noopener">Open <svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
-        <form method="post" action="/services/{{.ID}}/delete" data-confirm="Delete domain {{.Host}}?">
+        <button class="row-detail" type="button" data-dialog-open="service-edit-{{.ID}}"><svg aria-hidden="true"><use href="#icon-edit"></use></svg> Edit</button>
+        <form method="post" action="/services/{{.ID}}/delete" data-confirm="Delete route {{.Host}}? Requests to this domain will stop at the gateway." data-confirm-title="Delete route?" data-confirm-action="Delete route">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <button class="icon-danger" type="submit" aria-label="Delete domain {{.Host}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button>
+          <button class="icon-danger" type="submit" aria-label="Delete route {{.Host}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button>
         </form>
       </div>
     </article>
     {{end}}
   </div>
   {{else}}
-  <div class="empty-state"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><h3>No domains yet</h3><p>Connect the first domain to a local application or server peer.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Add domain</button></div>
+  <div class="empty-state"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><h3>No routes</h3><p>Connect the first domain to a local service or remote upstream server.</p><button class="secondary" type="button" data-dialog-open="service-dialog">Add route</button></div>
   {{end}}
 </section>
 
-<dialog class="app-dialog" id="service-dialog" {{if .Error}}data-open-on-error{{end}}>
+<dialog class="app-dialog" id="service-dialog" aria-labelledby="service-dialog-title" {{if and .Error (not .FormServiceID)}}data-open-on-error{{end}}>
   <div class="dialog-card">
     <div class="dialog-head">
-      <div><p class="eyebrow">NEW APPLICATION ROUTE</p><h2>Add domain</h2></div>
+      <div><p class="eyebrow">PUBLISH ROUTE</p><h2 id="service-dialog-title">Add gateway route</h2></div>
       <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
-    <p class="muted">Use a built-in subdomain or your own external domain.</p>
-    {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
+    <p class="muted">Map a domain to an application reachable by this gateway.</p>
+    {{if and .Error (not .FormServiceID)}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
     <form method="post" action="/services" class="stack-form">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>Domain<input name="host" value="{{.FormHost}}" required placeholder="app.{{.BaseDomain}} or app.other-domain.com" autocomplete="off"><small>Exclude <code>https://</code> and paths.</small></label>
-      <label>Application target<input name="target" value="{{.FormTarget}}" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Use local loopback or <code>10.77.0.x:port</code> for a server peer.</small></label>
-      <fieldset class="access-picker"><legend>Visibility</legend><label><input type="radio" name="access" value="private" {{if ne .FormAccess "public"}}checked{{end}}><span><b>Private</b><small>Requires an authorized WireGuard peer and shared role.</small></span></label><label><input type="radio" name="access" value="public" {{if eq .FormAccess "public"}}checked{{end}}><span><b>Public</b><small>Open to the Internet. The upstream must provide any required authentication.</small></span></label></fieldset>
-      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Add route</button></div>
+      <label>Application domain<input name="host" value="{{.FormHost}}" required placeholder="app.{{.BaseDomain}} or app.other-domain.com" autocomplete="off"><small>Enter a hostname only. Exclude <code>https://</code> and paths.</small></label>
+      <label>Upstream target<input name="target" value="{{.FormTarget}}" required placeholder="127.0.0.1:8081" autocomplete="off"><small>Use loopback for local services or <code>10.77.0.x:port</code> for a remote endpoint.</small></label>
+      <fieldset class="access-picker"><legend>Access mode</legend><label><input type="radio" name="access" value="private" {{if ne .FormAccess "public"}}checked{{end}}><span><b>Private gateway</b><small>Requires a VPN connection with matching access.</small></span></label><label><input type="radio" name="access" value="public" {{if eq .FormAccess "public"}}checked{{end}}><span><b>Public edge</b><small>Internet accessible. Authentication remains the upstream application's responsibility.</small></span></label></fieldset>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Publish route</button></div>
     </form>
   </div>
 </dialog>
+
+{{range .Services}}
+<dialog class="app-dialog" id="service-edit-{{.ID}}" aria-labelledby="service-edit-title-{{.ID}}" {{if eq .ID $.FormServiceID}}data-open-on-error{{end}}>
+  <div class="dialog-card">
+    <div class="dialog-head">
+      <div><p class="eyebrow">EDIT ROUTE</p><h2 id="service-edit-title-{{.ID}}">{{.Host}}</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <p class="muted">Update the application domain or upstream target.</p>
+    {{if eq .ID $.FormServiceID}}<div class="dialog-error" role="alert">{{$.Error}}</div>{{end}}
+    <form method="post" action="/services/{{.ID}}" class="stack-form">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <label>Application domain<input name="host" value="{{if eq .ID $.FormServiceID}}{{$.FormHost}}{{else}}{{.Host}}{{end}}" required autocomplete="off"><small>Enter a hostname only. Exclude <code>https://</code> and paths.</small></label>
+      <label>Upstream target<input name="target" value="{{if eq .ID $.FormServiceID}}{{$.FormTarget}}{{else}}{{.Target}}{{end}}" required autocomplete="off"><small>Use loopback for local services or <code>10.77.0.x:port</code> for a remote endpoint.</small></label>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Save changes</button></div>
+    </form>
+  </div>
+</dialog>
+{{end}}
 {{template "footer" .}}

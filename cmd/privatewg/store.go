@@ -338,6 +338,17 @@ func (s *store) serviceByID(id int64) (service, error) {
 	return svc, err
 }
 
+func (s *store) updateService(id int64, host, target string) error {
+	result, err := s.db.Exec(`UPDATE services SET host=?,target=? WHERE id=?`, host, target, id)
+	if err != nil {
+		return friendlyDBError(err)
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (s *store) setServiceEnabled(id int64, enabled bool) error {
 	result, err := s.db.Exec(`UPDATE services SET enabled=? WHERE id=?`, enabled, id)
 	if err == nil {

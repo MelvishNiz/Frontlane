@@ -182,6 +182,42 @@ func TestSetServiceAccess(t *testing.T) {
 	}
 }
 
+func TestUpdateService(t *testing.T) {
+	dir := t.TempDir()
+	st, err := openStore(filepath.Join(dir, "frontlane.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	svc, err := st.createService("old.example.com", "10.77.0.20:80", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &server{
+		cfg: config{
+			Listen:             "10.77.0.1:8080",
+			BaseDomain:         "example.com",
+			TraefikDynamicFile: filepath.Join(dir, "dynamic.yml"),
+			CoreDNSHosts:       filepath.Join(dir, "domains.hosts"),
+		},
+		store: st, sessions: map[string]session{"valid": {CSRF: "token", Expires: time.Now().Add(time.Hour)}},
+	}
+	form := url.Values{"csrf": {"token"}, "host": {"new.example.com"}, "target": {"10.77.0.21:8080"}}
+	req := httptest.NewRequest(http.MethodPost, "/services/1", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", strconv.FormatInt(svc.ID, 10))
+	req.AddCookie(&http.Cookie{Name: "pwg_session", Value: "valid"})
+	response := httptest.NewRecorder()
+	s.updateService(response, req)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("update response = %d: %s", response.Code, response.Body.String())
+	}
+	updated, err := st.serviceByID(svc.ID)
+	if err != nil || updated.Host != "new.example.com" || updated.Target != "10.77.0.21:8080" {
+		t.Fatalf("updated service = %#v, error = %v", updated, err)
+	}
+}
+
 func TestClientIPTrustsOnlyLocalProxy(t *testing.T) {
 	trusted := httptest.NewRequest(http.MethodGet, "/", nil)
 	trusted.RemoteAddr = "127.0.0.1:1234"

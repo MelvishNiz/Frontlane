@@ -1,0 +1,56 @@
+{{template "header" .}}
+<section class="directory-shell">
+  <div class="directory-toolbar">
+    <div>
+      <p class="eyebrow">WIREGUARD / VPN CONNECTIONS</p>
+      <h2>Client & server VPN</h2>
+      <p class="muted">Manage user devices and upstream application hosts separately.</p>
+    </div>
+    <div class="toolbar-actions">
+      <span class="directory-count"><b>{{len .Peers}}</b><small>VPN connections</small></span>
+      <button class="primary" type="button" data-dialog-open="peer-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add VPN</button>
+    </div>
+  </div>
+
+  <nav class="vpn-tabs" aria-label="VPN type" role="tablist">
+    <a href="/vpn?tab=client" role="tab" aria-selected="{{if eq .VPNTab "client"}}true{{else}}false{{end}}" {{if eq .VPNTab "client"}}aria-current="page"{{end}}><span>Client VPN</span><strong>{{len .ClientPeers}}</strong></a>
+    <a href="/vpn?tab=server" role="tab" aria-selected="{{if eq .VPNTab "server"}}true{{else}}false{{end}}" {{if eq .VPNTab "server"}}aria-current="page"{{end}}><span>Server VPN</span><strong>{{len .ServerPeers}}</strong></a>
+  </nav>
+
+  <section class="peer-group" aria-label="VPN connections">
+    {{if .VPNPeers}}
+    <div class="resource-list peer-resource-list">
+      <div class="resource-header peer-columns" aria-hidden="true"><span>{{if eq .VPNTab "server"}}Server{{else}}Device{{end}}</span><span>Gateway IP</span><span>Session</span><span>Traffic</span><span>Enabled</span><span></span></div>
+      {{range .VPNPeers}}
+      <article class="resource-row peer-columns {{if not .Enabled}}is-disabled{{end}}" data-peer-id="{{.ID}}">
+        <a class="resource-identity" href="/vpn/{{.ID}}"><span class="device-icon {{.Kind}}"><i></i></span><span><b>{{.Name}}</b><small>{{if eq .Kind "server"}}Upstream server{{else}}User device{{end}} · enrolled {{ago .CreatedAt}}</small></span></a>
+        <code class="resource-address">{{.IP}}</code>
+        <span class="peer-state {{if and .Enabled .Active}}online{{end}}" data-peer-state><i></i><span><b data-peer-state-text>{{if not .Enabled}}Paused{{else if .Active}}Connected{{else}}Idle{{end}}</b><small>Seen <span data-peer-handshake data-timestamp="{{unix .LastHandshake}}">{{ago .LastHandshake}}</span></small></span></span>
+        <span class="traffic"><small>IN <span data-peer-rx>{{bytes .ReceivedBytes}}</span></small><small>OUT <span data-peer-tx>{{bytes .TransmittedBytes}}</span></small></span>
+        <form method="post" action="/vpn/{{.ID}}/toggle" class="toggle-form"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="next" value="/vpn?tab={{$.VPNTab}}"><button class="switch-control" type="submit" role="switch" aria-checked="{{.Enabled}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} {{.Kind}} VPN {{.Name}}"><span></span></button></form>
+        <div class="row-actions"><form method="post" action="/vpn/{{.ID}}/delete" data-confirm="Delete {{.Kind}} VPN {{.Name}}? Its private gateway access will be revoked immediately." data-confirm-title="Delete {{.Kind}} VPN?" data-confirm-action="Delete VPN"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="icon-danger" type="submit" aria-label="Delete {{.Kind}} VPN {{.Name}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button></form></div>
+      </article>
+      {{end}}
+    </div>
+    {{else}}<p class="peer-group-empty">No {{.VPNTab}} VPN configured.</p>{{end}}
+  </section>
+</section>
+
+<dialog class="app-dialog" id="peer-dialog" aria-labelledby="peer-dialog-title" {{if .Error}}data-open-on-error{{end}}>
+  <div class="dialog-card">
+    <div class="dialog-head">
+      <div><p class="eyebrow">NEW VPN CONNECTION</p><h2 id="peer-dialog-title">Add VPN</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <p class="muted">Create gateway credentials for a device or remote application host.</p>
+    {{if .Error}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
+    <form method="post" action="/vpn" class="stack-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>VPN name<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,79}" required placeholder="work-laptop" autocomplete="off"><small>Letters, numbers, dots, underscores, or hyphens.</small></label>
+      <label>VPN type<select name="kind"><option value="client">Client VPN — laptop / phone</option><option value="server">Server VPN — application host</option></select></label>
+      <fieldset class="peer-role-picker"><legend>Accesses</legend><div class="check-list">{{range .Roles}}<label><input type="checkbox" name="role_ids" value="{{.ID}}"><span><b>{{.Name}}</b><small>{{len .ServiceIDs}} permitted routes</small></span></label>{{else}}<p class="empty">Create an access before adding a VPN connection.</p>{{end}}</div><small>Select at least one access. Multiple accesses can apply.</small></fieldset>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit" {{if not .Roles}}disabled{{end}}>Create VPN</button></div>
+    </form>
+  </div>
+</dialog>
+{{template "footer" .}}

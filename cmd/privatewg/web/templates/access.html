@@ -1,0 +1,78 @@
+{{template "header" .}}
+<section class="directory-shell">
+  <div class="directory-toolbar">
+    <div>
+      <p class="eyebrow">ACCESS CONTROL / ACCESSES</p>
+      <h2>Route accesses</h2>
+      <p class="muted">Group private application routes into reusable VPN access grants.</p>
+    </div>
+    <div class="toolbar-actions">
+      <span class="directory-count"><b>{{len .Roles}}</b><small>accesses</small></span>
+      <button class="primary" type="button" data-dialog-open="access-create-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-add"></use></svg> Add access</button>
+    </div>
+  </div>
+
+  {{if .Roles}}
+  <div class="resource-list access-resource-list">
+    <div class="resource-header access-columns" aria-hidden="true"><span>Access</span><span>Routes</span><span>Created</span><span></span></div>
+    {{range .Roles}}
+    <article class="resource-row access-columns">
+      <div class="resource-identity"><span class="access-icon">ACL</span><span><b>{{.Name}}</b><small>Reusable route grant</small></span></div>
+      <span class="route-count"><b>{{len .ServiceIDs}}</b><small>routes</small></span>
+      <span class="resource-created">{{ago .CreatedAt}}</span>
+      <div class="row-actions">
+        <button class="row-detail" type="button" data-dialog-open="access-edit-{{.ID}}">Edit</button>
+        <form method="post" action="/roles/{{.ID}}/delete" data-confirm="Delete access {{.Name}}? VPN connections using it will lose these route grants immediately." data-confirm-title="Delete access?" data-confirm-action="Delete access"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="icon-danger" type="submit" aria-label="Delete access {{.Name}}"><svg aria-hidden="true"><use href="#icon-delete"></use></svg></button></form>
+      </div>
+    </article>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty-state compact"><span><svg aria-hidden="true"><use href="#icon-roles"></use></svg></span><h3>No accesses configured</h3><p>Create an access to group routes before assigning it to a VPN connection.</p><button class="secondary" type="button" data-dialog-open="access-create-dialog">Add first access</button></div>
+  {{end}}
+</section>
+
+<dialog class="app-dialog access-dialog" id="access-create-dialog" aria-labelledby="access-create-title" {{if and .Error (not .Role.ID)}}data-open-on-error{{end}}>
+  <div class="dialog-card">
+    <div class="dialog-head">
+      <div><p class="eyebrow">NEW ACCESS</p><h2 id="access-create-title">Add access</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <p class="muted">Name the access, then choose its permitted routes.</p>
+    {{if and .Error (not .Role.ID)}}<div class="dialog-error" role="alert">{{.Error}}</div>{{end}}
+    <form method="post" action="/roles" class="stack-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Access name<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}" value="{{.Role.Name}}" required placeholder="Engineering" autocomplete="off"><small>VPN connections select this access separately.</small></label>
+      <fieldset class="peer-role-picker" data-select-group>
+        <legend><span>Application routes</span><label class="select-all"><input type="checkbox" data-select-all> Select all</label></legend>
+        <div class="check-list">{{range .Services}}<label><input type="checkbox" name="service_ids" value="{{.ID}}" {{if index $.Role.ServiceIDs .ID}}checked{{end}}><span><b>{{.Host}}</b><small>{{.Target}}{{if .Public}} · public{{else if not .Enabled}} · paused{{end}}</small></span></label>{{else}}<p class="empty">No routes available.</p>{{end}}</div>
+        <small>Select only routes permitted by this access.</small>
+      </fieldset>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Create access</button></div>
+    </form>
+  </div>
+</dialog>
+
+{{range .Roles}}
+<dialog class="app-dialog access-dialog" id="access-edit-{{.ID}}" aria-labelledby="access-edit-title-{{.ID}}" {{if eq .ID $.Role.ID}}data-open-on-error{{end}}>
+  <div class="dialog-card">
+    <div class="dialog-head">
+      <div><p class="eyebrow">EDIT ACCESS</p><h2 id="access-edit-title-{{.ID}}">{{.Name}}</h2></div>
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Close dialog"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <p class="muted">Update the name or permitted application routes.</p>
+    {{if eq .ID $.Role.ID}}<div class="dialog-error" role="alert">{{$.Error}}</div>{{end}}
+    <form method="post" action="/roles/{{.ID}}" class="stack-form">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <label>Access name<input name="name" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}" value="{{if eq .ID $.Role.ID}}{{$.Role.Name}}{{else}}{{.Name}}{{end}}" required autocomplete="off"><small>VPN assignments remain unchanged.</small></label>
+      <fieldset class="peer-role-picker" data-select-group>
+        <legend><span>Application routes</span><label class="select-all"><input type="checkbox" data-select-all> Select all</label></legend>
+        <div class="check-list">{{$access := .}}{{range $.Services}}<label><input type="checkbox" name="service_ids" value="{{.ID}}" {{if eq $access.ID $.Role.ID}}{{if index $.Role.ServiceIDs .ID}}checked{{end}}{{else}}{{if index $access.ServiceIDs .ID}}checked{{end}}{{end}}><span><b>{{.Host}}</b><small>{{.Target}}{{if .Public}} · public{{else if not .Enabled}} · paused{{end}}</small></span></label>{{else}}<p class="empty">No routes available.</p>{{end}}</div>
+        <small>Select only routes permitted by this access.</small>
+      </fieldset>
+      <div class="dialog-actions"><button class="secondary" type="button" data-dialog-close>Cancel</button><button class="primary" type="submit">Save access</button></div>
+    </form>
+  </div>
+</dialog>
+{{end}}
+{{template "footer" .}}

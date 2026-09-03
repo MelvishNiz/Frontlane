@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"html/template"
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -160,6 +162,80 @@ func TestRoleSharedAccessDefaultDenyAndCascade(t *testing.T) {
 	assertCount(t, st.db, `SELECT COUNT(*) FROM peer_roles WHERE role_id=?`, 0, temporaryID)
 }
 
+func TestSplitPeers(t *testing.T) {
+	clients, servers := splitPeers([]peer{
+		{ID: 1, Kind: "client"},
+		{ID: 2, Kind: "server"},
+		{ID: 3, Kind: "client"},
+	})
+	if len(clients) != 2 || len(servers) != 1 || servers[0].ID != 2 {
+		t.Fatalf("unexpected split: clients=%v servers=%v", clients, servers)
+	}
+}
+
+func TestVPNTemplateTabsAndURLs(t *testing.T) {
+	tpl, err := template.New("").Funcs(template.FuncMap{
+		"initial": initial,
+		"bytes":   humanBytes,
+		"ago":     timeAgo,
+		"unix":    func(value time.Time) int64 { return value.Unix() },
+		"internalDomain": func(string) bool {
+			return true
+		},
+	}).ParseFS(assets, "web/templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := viewData{
+		Title: "VPN connections", Section: "endpoints", User: "admin", CSRF: "token", VPNTab: "server",
+		ClientPeers: []peer{{ID: 1, Name: "laptop", Kind: "client"}},
+		ServerPeers: []peer{{ID: 2, Name: "api", Kind: "server"}},
+		VPNPeers:    []peer{{ID: 2, Name: "api", Kind: "server"}},
+	}
+	var rendered bytes.Buffer
+	if err := tpl.ExecuteTemplate(&rendered, "vpn.html", data); err != nil {
+		t.Fatal(err)
+	}
+	output := rendered.String()
+	if !strings.Contains(output, `href="/vpn?tab=server"`) || !strings.Contains(output, `href="/vpn/2"`) || strings.Contains(output, "/peers") || strings.Contains(output, ">laptop<") {
+		t.Fatal("VPN page must render the selected server tab with /vpn URLs only")
+	}
+}
+
+func TestServicesTemplate(t *testing.T) {
+	tpl, err := template.New("").Funcs(template.FuncMap{
+		"initial": initial,
+		"bytes":   humanBytes,
+		"ago":     timeAgo,
+		"unix":    func(value time.Time) int64 { return value.Unix() },
+		"internalDomain": func(string) bool {
+			return true
+		},
+	}).ParseFS(assets, "web/templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := viewData{
+		Title: "Routes", Section: "routes", User: "admin", CSRF: "token", PanelDomain: "panel.example.com",
+		Services: []service{{ID: 1, Host: "app.example.com", Target: "10.77.0.20:80", Enabled: true, Public: true, CreatedAt: time.Now()}},
+	}
+	var rendered bytes.Buffer
+	if err := tpl.ExecuteTemplate(&rendered, "services.html", data); err != nil {
+		t.Fatal(err)
+	}
+	output := rendered.String()
+	for _, expected := range []string{`<b>Routes</b>`, `<span>Public</span><span>Active</span>`, `href="https://app.example.com"`, `href="#icon-language"`, `id="service-edit-1"`, `action="/services/1"`} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("routes page missing %q", expected)
+		}
+	}
+	for _, removed := range []string{"Application routes", "DNS points traffic here", ">Open <", ">Live<", ">Access<"} {
+		if strings.Contains(output, removed) {
+			t.Fatalf("routes page still contains %q", removed)
+		}
+	}
+}
+
 func TestRolesTemplate(t *testing.T) {
 	tpl, err := template.New("").Funcs(template.FuncMap{
 		"initial": initial,
@@ -180,11 +256,20 @@ func TestRolesTemplate(t *testing.T) {
 		Roles:    []role{{ID: 1, Name: "All", CreatedAt: time.Now(), PeerIDs: map[int64]bool{1: true}, ServiceIDs: map[int64]bool{1: true}}},
 		Role:     role{ID: 1, Name: "All", PeerIDs: map[int64]bool{1: true}, ServiceIDs: map[int64]bool{1: true}},
 	}
-	if err := tpl.ExecuteTemplate(io.Discard, "roles.html", data); err != nil {
+	var rendered bytes.Buffer
+	data.Section = "access"
+	if err := tpl.ExecuteTemplate(&rendered, "access.html", data); err != nil {
 		t.Fatal(err)
 	}
+	output := rendered.String()
+	if !strings.Contains(output, `href="/roles" aria-current="page"`) || !strings.Contains(output, `id="confirm-dialog"`) {
+		t.Fatal("access navigation must be active and include the shared confirmation dialog")
+	}
+	if !strings.Contains(output, `class="resource-header access-columns"`) || !strings.Contains(output, `id="access-edit-1"`) || strings.Contains(output, `name="peer_ids"`) || !strings.Contains(output, `<span>Traefik</span>`) {
+		t.Fatal("access page must use a table, modal CRUD, route-only assignments, and Traefik label")
+	}
 	data.Role = role{}
-	if err := tpl.ExecuteTemplate(io.Discard, "roles.html", data); err != nil {
+	if err := tpl.ExecuteTemplate(io.Discard, "access.html", data); err != nil {
 		t.Fatal(err)
 	}
 }

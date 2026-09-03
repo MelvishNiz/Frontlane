@@ -1,22 +1,43 @@
 {{template "header" .}}
-<section class="signal-map" aria-label="Network status">
-  <div class="node hub"><span>HUB</span><strong>10.77.0.1</strong><small>{{if .WG.Running}}WireGuard active{{else}}WireGuard stopped{{end}}</small></div>
-  <div class="tunnel"><span></span><span></span><span></span></div>
-  <div class="node peers"><span>PEERS</span><strong>{{.WG.ActiveCount}} / {{.WG.PeerCount}}</strong><small>active now</small></div>
-  <div class="tunnel"><span></span><span></span><span></span></div>
-  <div class="node services"><span>ROUTES</span><strong>{{len .Services}}</strong><small>registered domains</small></div>
+<section class="overview-hero" aria-labelledby="gateway-status-title">
+  <div class="overview-status">
+    <p class="eyebrow">GATEWAY STATUS</p>
+    <div class="status-heading"><span class="status-beacon {{if not .WG.Running}}is-offline{{end}}"><i></i></span><div><h2 id="gateway-status-title">{{if .WG.Running}}All systems operational{{else}}Gateway needs attention{{end}}</h2><p>{{if .WG.Running}}Secure routing is online and ready for traffic.{{else}}WireGuard transport is unavailable. Check the host service.{{end}}</p></div></div>
+    <code class="gateway-endpoint">{{.Endpoint}}</code>
+  </div>
+  <div class="overview-actions" aria-label="Quick actions">
+    <p class="eyebrow">QUICK ACTIONS</p>
+    <a href="/services"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><div><b>Publish a route</b><small>Connect a domain to an upstream</small></div><svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
+    <a href="/vpn"><span><svg aria-hidden="true"><use href="#icon-devices"></use></svg></span><div><b>Add VPN connection</b><small>Enroll a device or server</small></div><svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
+  </div>
 </section>
-<section class="metrics">
-  <article><small>Public endpoint</small><strong class="mono">{{.Endpoint}}</strong></article>
-  <article><small>Data received</small><strong>{{bytes .WG.Received}}</strong></article>
-  <article><small>Data sent</small><strong>{{bytes .WG.Transmitted}}</strong></article>
+
+<section class="overview-metrics" aria-label="Gateway metrics">
+  <article><span class="metric-icon"><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><div><small>Application routes</small><strong>{{len .Services}}</strong><p>Domains managed</p></div></article>
+  <article><span class="metric-icon"><svg aria-hidden="true"><use href="#icon-devices"></use></svg></span><div><small>VPN online</small><strong>{{.WG.ActiveCount}} <em>/ {{.WG.PeerCount}}</em></strong><p>Active connections</p></div></article>
+  <article><span class="metric-icon down">↓</span><div><small>Downloaded</small><strong>{{bytes .WG.Received}}</strong><p>Gateway ingress</p></div></article>
+  <article><span class="metric-icon up">↑</span><div><small>Uploaded</small><strong>{{bytes .WG.Transmitted}}</strong><p>Gateway egress</p></div></article>
 </section>
-<div class="split">
-  <section class="panel"><div class="panel-head"><div><p class="eyebrow">TUNNELS</p><h2>Recent peers</h2></div><a class="text-link" href="/peers">Manage peers</a></div>
-    {{if .Peers}}<div class="compact-list">{{range .Peers}}<div><span class="kind">{{.Kind}}</span><a class="peer-quick-link" href="/peers/{{.ID}}"><strong>{{.Name}}</strong></a><code>{{.IP}}</code></div>{{end}}</div>{{else}}<div class="empty">No peers yet. Create your first profile to access the network.</div>{{end}}
+
+<div class="overview-grid">
+  <section class="panel overview-routes">
+    <div class="panel-head"><div><p class="eyebrow">APPLICATION DELIVERY</p><h2>Routes</h2><p class="muted">Current domains, upstreams, and access modes.</p></div><a class="text-link" href="/services">Manage routes</a></div>
+    {{if .Services}}<div class="compact-list route-compact">{{range .Services}}<a href="https://{{.Host}}" target="_blank" rel="noopener"><span class="route-light {{if not .Enabled}}paused{{end}}"></span><span><strong>{{.Host}}</strong><small>{{.Target}}</small></span><span class="access-badge {{if .Public}}public{{end}}">{{if .Public}}Public{{else}}Private{{end}}</span></a>{{end}}</div>{{else}}<div class="empty-state compact"><span><svg aria-hidden="true"><use href="#icon-language"></use></svg></span><h3>No application routes</h3><p>Publish the first upstream through Frontlane.</p><a class="secondary" href="/services">Create route</a></div>{{end}}
   </section>
-  <section class="panel"><div class="panel-head"><div><p class="eyebrow">PUBLIC + PRIVATE INGRESS</p><h2>Application routes</h2></div><a class="text-link" href="/services">Manage routes</a></div>
-    {{if .Services}}<div class="compact-list">{{range .Services}}<div><strong>{{.Host}}</strong><code>{{if .Public}}public{{else}}private{{end}} · {{.Target}}</code></div>{{end}}</div>{{else}}<div class="empty">No routes yet. Connect a local application or another server.</div>{{end}}
+
+  <section class="panel health-panel">
+    <div class="panel-head"><div><p class="eyebrow">READINESS</p><h2>Gateway checks</h2><p class="muted">What is ready to serve traffic now.</p></div></div>
+    <div class="health-list">
+      <div><span class="health-check {{if not .WG.Running}}is-offline{{end}}"><svg aria-hidden="true"><use href="{{if .WG.Running}}#icon-check{{else}}#icon-warning{{end}}"></use></svg></span><span><b>WireGuard transport</b><small>{{if .WG.Running}}Running normally{{else}}Service unavailable{{end}}</small></span></div>
+      <div><span class="health-check {{if not .Services}}is-idle{{end}}"><svg aria-hidden="true"><use href="{{if .Services}}#icon-check{{else}}#icon-warning{{end}}"></use></svg></span><span><b>Application delivery</b><small>{{if .Services}}{{len .Services}} routes configured{{else}}No routes configured{{end}}</small></span></div>
+      <div><span class="health-check {{if not .WG.PeerCount}}is-idle{{end}}"><svg aria-hidden="true"><use href="{{if .WG.PeerCount}}#icon-check{{else}}#icon-warning{{end}}"></use></svg></span><span><b>Private access</b><small>{{if .WG.PeerCount}}{{.WG.PeerCount}} VPN connections enrolled{{else}}No VPN connections enrolled{{end}}</small></span></div>
+    </div>
+    <a class="health-link" href="/traefik/dashboard/" target="_blank" rel="noopener">Open Traefik diagnostics <svg aria-hidden="true"><use href="#icon-open"></use></svg></a>
+  </section>
+
+  <section class="panel overview-peers">
+    <div class="panel-head"><div><p class="eyebrow">PRIVATE NETWORK</p><h2>VPN connections</h2><p class="muted">Devices and servers trusted by this gateway.</p></div><a class="text-link" href="/vpn">Manage VPNs</a></div>
+    {{if .Peers}}<div class="compact-list endpoint-compact">{{range .Peers}}<a href="/vpn/{{.ID}}"><span class="device-icon {{.Kind}}"><i></i></span><span><strong>{{.Name}}</strong><small>{{if eq .Kind "client"}}User device{{else}}Upstream server{{end}} · {{if and .Enabled .Active}}connected{{else if not .Enabled}}paused{{else}}idle{{end}}</small></span><span class="peer-state {{if and .Enabled .Active}}online{{end}}"><i></i><b>{{.IP}}</b></span></a>{{end}}</div>{{else}}<div class="empty-state compact"><span><svg aria-hidden="true"><use href="#icon-devices"></use></svg></span><h3>No VPN connections</h3><p>Add a client device or upstream server.</p><a class="secondary" href="/vpn">Add VPN</a></div>{{end}}
   </section>
 </div>
 {{template "footer" .}}
