@@ -2,14 +2,14 @@
 set -eu
 
 source_config=${WG_CONFIG:-/config/wg0.conf}
-runtime_dir=/run/privatewg
+runtime_dir=/run/frontlane
 runtime_config=$runtime_dir/wg0.conf
 interface=wg0
 up=0
 
 if [ ! -f "$source_config" ]; then
   printf 'Configuration not found: %s\n' "$source_config" >&2
-  printf 'Save the PrivateWG server peer config as config/wg0.conf.\n' >&2
+  printf 'Save the Frontlane server peer config as config/wg0.conf.\n' >&2
   exit 1
 fi
 
@@ -34,7 +34,7 @@ trap 'exit 0' HUP INT TERM
 
 wg-quick up "$runtime_config"
 up=1
-printf 'PrivateWG client active on %s (%s).\n' "$interface" "$(ip -4 -o address show dev "$interface" | awk '{print $4}')"
+printf 'Frontlane client active on %s (%s).\n' "$interface" "$(ip -4 -o address show dev "$interface" | awk '{print $4}')"
 
 while :; do
   sleep 3600 &

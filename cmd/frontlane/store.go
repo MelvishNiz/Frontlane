@@ -172,7 +172,7 @@ func (s *store) ensureAdmin(username, password string) error {
 		return nil
 	}
 	if len(password) < 20 {
-		return errors.New("PWG_ADMIN_PASSWORD must contain at least 20 characters")
+		return errors.New("FRONTLANE_ADMIN_PASSWORD must contain at least 20 characters")
 	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {

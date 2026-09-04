@@ -1,4 +1,4 @@
-module privatewg
+module frontlane
 
 go 1.24.0
 

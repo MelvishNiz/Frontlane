@@ -17,7 +17,7 @@ func TestEncryptedPeerConfigRoundTrip(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(wgDir, "server.key"), []byte("test-server-private-key\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	st, err := openStore(filepath.Join(dir, "privatewg.db"))
+	st, err := openStore(filepath.Join(dir, "frontlane.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestEncryptedPeerConfigRoundTrip(t *testing.T) {
 }
 
 func TestEnabledStateRoundTrip(t *testing.T) {
-	st, err := openStore(filepath.Join(t.TempDir(), "privatewg.db"))
+	st, err := openStore(filepath.Join(t.TempDir(), "frontlane.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestPeerActive(t *testing.T) {
 }
 
 func TestLastHandshakePersists(t *testing.T) {
-	st, err := openStore(filepath.Join(t.TempDir(), "privatewg.db"))
+	st, err := openStore(filepath.Join(t.TempDir(), "frontlane.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

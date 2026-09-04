@@ -27,9 +27,11 @@ jobs:
       matrix:
         include:
           - name: server
+            image: frontlane
             context: .
             dockerfile: ./Dockerfile
           - name: client
+            image: frontlane-wg-client
             context: ./client
             dockerfile: ./client/Dockerfile
 
@@ -43,7 +45,7 @@ jobs:
       - name: Resolve image name
         id: image
         shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/privatewg-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

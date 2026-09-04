@@ -76,7 +76,7 @@ func TestBuildRoutingConfigs(t *testing.T) {
 	if dashboard.Service != "api@internal" || dashboard.Rule != "Host(`panel.example.com`) && PathPrefix(`/traefik`)" || strings.Join(dashboard.Middlewares, ",") != "panel-auth" || dashboard.Priority != 100 {
 		t.Fatalf("dashboard router = %#v", dashboard)
 	}
-	if got := cfg.HTTP.Middlewares["panel-auth"].ForwardAuth; got == nil || got.Address != "http://10.77.0.1:8080/__privatewg/auth" || !got.PreserveLocationHeader {
+	if got := cfg.HTTP.Middlewares["panel-auth"].ForwardAuth; got == nil || got.Address != "http://10.77.0.1:8080/__frontlane/auth" || !got.PreserveLocationHeader {
 		t.Fatalf("panel auth = %#v", got)
 	}
 	active := cfg.HTTP.Routers["service-1"]
@@ -98,25 +98,25 @@ func TestBuildRoutingConfigs(t *testing.T) {
 	if retry.Attempts != 16 || retry.InitialInterval != "500ms" || retry.Timeout != "8s" || strings.Join(retry.Status, ",") != "502,504" {
 		t.Fatalf("retry = %#v", retry)
 	}
-	transport := cfg.HTTP.ServersTransports["privatewg-upstream"]
+	transport := cfg.HTTP.ServersTransports["frontlane-upstream"]
 	if transport.MaxIdleConnsPerHost != 5 || transport.ForwardingTimeouts.DialTimeout != "30s" || transport.ForwardingTimeouts.ResponseHeaderTimeout != "30s" || transport.ForwardingTimeouts.IdleConnTimeout != "30s" {
 		t.Fatalf("transport = %#v", transport)
 	}
 	paused := cfg.HTTP.Routers["service-2"]
-	if paused.Service != "privatewg-errors" || strings.Join(paused.Middlewares, ",") != "paused-route" {
+	if paused.Service != "frontlane-errors" || strings.Join(paused.Middlewares, ",") != "paused-route" {
 		t.Fatalf("paused router = %#v", paused)
 	}
 	if _, exists := cfg.HTTP.Services["service-2"]; exists {
 		t.Fatal("paused service must not proxy to its upstream")
 	}
 	denied := cfg.HTTP.Routers["service-3"]
-	if denied.Service != "privatewg-errors" || strings.Join(denied.Middlewares, ",") != "denied-route" {
+	if denied.Service != "frontlane-errors" || strings.Join(denied.Middlewares, ",") != "denied-route" {
 		t.Fatalf("denied router = %#v", denied)
 	}
 	if _, exists := cfg.HTTP.Services["service-3"]; exists {
 		t.Fatal("unauthorized service must not proxy to its upstream")
 	}
-	if cfg.HTTP.Middlewares["denied-route"].ReplacePath.Path != "/__privatewg/errors/403" {
+	if cfg.HTTP.Middlewares["denied-route"].ReplacePath.Path != "/__frontlane/errors/403" {
 		t.Fatal("unauthorized service must route to 403")
 	}
 	public := cfg.HTTP.Routers["service-4"]
@@ -134,7 +134,7 @@ func TestBuildRoutingConfigs(t *testing.T) {
 		t.Fatal("public error middleware must omit empty statusRewrites")
 	}
 	publicPaused := cfg.HTTP.Routers["service-5"]
-	if publicPaused.Service != "privatewg-errors" || strings.Join(publicPaused.Middlewares, ",") != "paused-route" {
+	if publicPaused.Service != "frontlane-errors" || strings.Join(publicPaused.Middlewares, ",") != "paused-route" {
 		t.Fatalf("paused public router = %#v", publicPaused)
 	}
 	if !strings.Contains(string(hosts), "10.77.0.1 paused.example.com") {
@@ -166,7 +166,7 @@ func TestSetServiceAccess(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/services/1/access", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("id", strconv.FormatInt(svc.ID, 10))
-	req.AddCookie(&http.Cookie{Name: "pwg_session", Value: "valid"})
+	req.AddCookie(&http.Cookie{Name: "frontlane_session", Value: "valid"})
 	response := httptest.NewRecorder()
 	s.setServiceAccess(response, req)
 	if response.Code != http.StatusSeeOther {
@@ -206,7 +206,7 @@ func TestUpdateService(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/services/1", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("id", strconv.FormatInt(svc.ID, 10))
-	req.AddCookie(&http.Cookie{Name: "pwg_session", Value: "valid"})
+	req.AddCookie(&http.Cookie{Name: "frontlane_session", Value: "valid"})
 	response := httptest.NewRecorder()
 	s.updateService(response, req)
 	if response.Code != http.StatusSeeOther {
@@ -238,15 +238,15 @@ func TestTraefikAuth(t *testing.T) {
 	s := &server{sessions: map[string]session{}}
 
 	unauthorized := httptest.NewRecorder()
-	s.traefikAuth(unauthorized, httptest.NewRequest(http.MethodGet, "/__privatewg/auth", nil))
+	s.traefikAuth(unauthorized, httptest.NewRequest(http.MethodGet, "/__frontlane/auth", nil))
 	if unauthorized.Code != http.StatusSeeOther || unauthorized.Header().Get("Location") != "/login" {
 		t.Fatalf("unauthorized auth response = %d, location %q", unauthorized.Code, unauthorized.Header().Get("Location"))
 	}
 
 	s.sessions["valid"] = session{Expires: time.Now().Add(time.Hour)}
 	authorized := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/__privatewg/auth", nil)
-	req.AddCookie(&http.Cookie{Name: "pwg_session", Value: "valid"})
+	req := httptest.NewRequest(http.MethodGet, "/__frontlane/auth", nil)
+	req.AddCookie(&http.Cookie{Name: "frontlane_session", Value: "valid"})
 	s.traefikAuth(authorized, req)
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("authorized auth response = %d", authorized.Code)
@@ -262,7 +262,7 @@ func TestRouteErrorPage(t *testing.T) {
 		{http.StatusBadGateway, "Application unreachable"},
 		{http.StatusServiceUnavailable, "Route paused"},
 	} {
-		req := httptest.NewRequest(http.MethodGet, "/__privatewg/errors/"+strconv.Itoa(test.status), nil)
+		req := httptest.NewRequest(http.MethodGet, "/__frontlane/errors/"+strconv.Itoa(test.status), nil)
 		req.SetPathValue("status", strconv.Itoa(test.status))
 		res := httptest.NewRecorder()
 		routeErrorPage(res, req)

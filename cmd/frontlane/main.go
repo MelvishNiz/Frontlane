@@ -94,9 +94,9 @@ type viewData struct {
 func main() {
 	cfg := loadConfig()
 	if cfg.PublicEndpoint == "" || cfg.BaseDomain == "" {
-		log.Fatal("PWG_PUBLIC_ENDPOINT and PWG_BASE_DOMAIN are required")
+		log.Fatal("FRONTLANE_PUBLIC_ENDPOINT and FRONTLANE_BASE_DOMAIN are required")
 	}
-	st, err := openStore(cfg.DataDir + "/privatewg.db")
+	st, err := openStore(cfg.DataDir + "/frontlane.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -140,8 +140,8 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
-	mux.HandleFunc("/__privatewg/errors/{status}", routeErrorPage)
-	mux.HandleFunc("GET /__privatewg/auth", s.traefikAuth)
+	mux.HandleFunc("/__frontlane/errors/{status}", routeErrorPage)
+	mux.HandleFunc("GET /__frontlane/auth", s.traefikAuth)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.auth(s.logout))
@@ -150,7 +150,7 @@ func main() {
 	mux.HandleFunc("POST /vpn", s.auth(s.createPeer))
 	mux.HandleFunc("POST /vpn/{id}", s.auth(s.updatePeer))
 	mux.HandleFunc("GET /vpn/{id}", s.auth(s.peerDetail))
-	mux.HandleFunc("GET /__privatewg/api/vpn/status", s.auth(s.peerStatuses))
+	mux.HandleFunc("GET /__frontlane/api/vpn/status", s.auth(s.peerStatuses))
 	mux.HandleFunc("GET /vpn/{id}/config", s.auth(s.downloadPeerConfig))
 	mux.HandleFunc("GET /vpn/{id}/qr.png", s.auth(s.peerQRCode))
 	mux.HandleFunc("POST /vpn/{id}/toggle", s.auth(s.togglePeer))
@@ -176,16 +176,16 @@ func main() {
 
 func loadConfig() config {
 	return config{
-		Listen:             env("PWG_LISTEN", "10.77.0.1:8080"),
-		PublicEndpoint:     os.Getenv("PWG_PUBLIC_ENDPOINT"),
-		BaseDomain:         strings.TrimSuffix(os.Getenv("PWG_BASE_DOMAIN"), "."),
-		AdminUser:          env("PWG_ADMIN_USER", "admin"),
-		AdminPassword:      os.Getenv("PWG_ADMIN_PASSWORD"),
-		CookieSecure:       env("PWG_COOKIE_SECURE", "true") == "true",
-		DataDir:            env("PWG_DATA_DIR", "/data/privatewg"),
-		WGDir:              env("PWG_WG_DIR", "/etc/wireguard"),
-		TraefikDynamicFile: env("PWG_TRAEFIK_DYNAMIC_FILE", "/data/traefik/dynamic/privatewg.yml"),
-		CoreDNSHosts:       env("PWG_COREDNS_HOSTS", "/data/coredns/domains.hosts"),
+		Listen:             env("FRONTLANE_LISTEN", "10.77.0.1:8080"),
+		PublicEndpoint:     os.Getenv("FRONTLANE_PUBLIC_ENDPOINT"),
+		BaseDomain:         strings.TrimSuffix(os.Getenv("FRONTLANE_BASE_DOMAIN"), "."),
+		AdminUser:          env("FRONTLANE_ADMIN_USER", "admin"),
+		AdminPassword:      os.Getenv("FRONTLANE_ADMIN_PASSWORD"),
+		CookieSecure:       env("FRONTLANE_COOKIE_SECURE", "true") == "true",
+		DataDir:            env("FRONTLANE_DATA_DIR", "/data/frontlane"),
+		WGDir:              env("FRONTLANE_WG_DIR", "/etc/wireguard"),
+		TraefikDynamicFile: env("FRONTLANE_TRAEFIK_DYNAMIC_FILE", "/data/traefik/dynamic/frontlane.yml"),
+		CoreDNSHosts:       env("FRONTLANE_COREDNS_HOSTS", "/data/coredns/domains.hosts"),
 	}
 }
 
@@ -221,7 +221,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	delete(s.attempts, ip)
 	s.mu.Unlock()
 	s.store.audit("login", s.cfg.AdminUser, ip)
-	http.SetCookie(w, &http.Cookie{Name: "pwg_session", Value: token, Path: "/", MaxAge: 43200, HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteStrictMode})
+	http.SetCookie(w, &http.Cookie{Name: "frontlane_session", Value: token, Path: "/", MaxAge: 43200, HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -230,12 +230,12 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
-	if cookie, err := r.Cookie("pwg_session"); err == nil {
+	if cookie, err := r.Cookie("frontlane_session"); err == nil {
 		s.mu.Lock()
 		delete(s.sessions, cookie.Value)
 		s.mu.Unlock()
 	}
-	http.SetCookie(w, &http.Cookie{Name: "pwg_session", Path: "/", MaxAge: -1, HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteStrictMode})
+	http.SetCookie(w, &http.Cookie{Name: "frontlane_session", Path: "/", MaxAge: -1, HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -1046,7 +1046,7 @@ func (s *server) traefikAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) currentSession(r *http.Request) (session, bool) {
-	cookie, err := r.Cookie("pwg_session")
+	cookie, err := r.Cookie("frontlane_session")
 	if err != nil {
 		return session{}, false
 	}

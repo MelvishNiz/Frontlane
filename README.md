@@ -2,7 +2,7 @@
 
 Frontlane is a lightweight, self-hosted application gateway. It publishes public or private HTTPS routes, connects remote application servers through WireGuard, manages private peer access with roles, and stores its control-plane state in SQLite.
 
-The project retains the `privatewg` binary, container names, data paths, and `PWG_*` environment variables for deployment compatibility.
+All application identifiers use the `frontlane` name, including the binary, container names, data paths, internal routes, session cookie, and `FRONTLANE_*` environment variables.
 
 ## Requirements
 
@@ -23,11 +23,11 @@ chmod 700 data/traefik/letsencrypt
 Edit `.env`:
 
 ```dotenv
-PWG_PUBLIC_ENDPOINT=203.0.113.10:51820
-PWG_BASE_DOMAIN=example.com
-PWG_ACME_EMAIL=admin@example.com
-PWG_ADMIN_USER=admin
-PWG_ADMIN_PASSWORD=replace-with-at-least-20-random-characters
+FRONTLANE_PUBLIC_ENDPOINT=203.0.113.10:51820
+FRONTLANE_BASE_DOMAIN=example.com
+FRONTLANE_ACME_EMAIL=admin@example.com
+FRONTLANE_ADMIN_USER=admin
+FRONTLANE_ADMIN_PASSWORD=replace-with-at-least-20-random-characters
 ```
 
 Start the stack:
@@ -40,9 +40,9 @@ docker compose up -d --build --remove-orphans
 The first startup creates a `bootstrap-admin` peer. Copy its configuration, then remove the server copy:
 
 ```bash
-sudo cp data/privatewg/bootstrap.conf ~/frontlane-bootstrap.conf
+sudo cp data/frontlane/bootstrap.conf ~/frontlane-bootstrap.conf
 sudo chown "$USER":"$USER" ~/frontlane-bootstrap.conf
-sudo rm data/privatewg/bootstrap.conf
+sudo rm data/frontlane/bootstrap.conf
 ```
 
 Open `https://panel.example.com`. Import the bootstrap configuration into WireGuard, create a replacement peer, then delete `bootstrap-admin`.
@@ -105,7 +105,7 @@ sudo sh scripts/firewall-nftables.sh
 ## Operations
 
 ```bash
-docker compose logs -f privatewg
+docker compose logs -f frontlane
 docker compose logs -f traefik
 docker compose restart coredns
 sudo wg show wg0
@@ -115,7 +115,7 @@ Create a consistent backup while the stack is stopped:
 
 ```bash
 docker compose stop
-tar czf frontlane-backup.tgz .env data/privatewg data/wireguard data/traefik data/coredns
+tar czf frontlane-backup.tgz .env data/frontlane data/wireguard data/traefik data/coredns
 docker compose start
 ```
 

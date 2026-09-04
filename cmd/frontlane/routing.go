@@ -178,7 +178,7 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 			"panel": {
 				EntryPoints: []string{"websecure"},
 				Rule:        fmt.Sprintf("Host(`panel.%s`)", cfg.BaseDomain),
-				Service:     "privatewg-panel",
+				Service:     "frontlane-panel",
 				TLS:         traefikTLS{CertResolver: "letsencrypt"},
 			},
 			"traefik-dashboard": {
@@ -193,7 +193,7 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 		Middlewares: map[string]traefikMiddleware{
 			"panel-auth": {
 				ForwardAuth: &traefikForwardAuth{
-					Address:                "http://10.77.0.1:8080/__privatewg/auth",
+					Address:                "http://10.77.0.1:8080/__frontlane/auth",
 					TrustForwardHeader:     false,
 					PreserveLocationHeader: true,
 				},
@@ -205,31 +205,31 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 				Errors: &traefikErrors{
 					Status:              []string{"418", "502", "504"},
 					StatusRewrites:      map[string]int{"418": http.StatusForbidden},
-					Service:             "privatewg-errors",
-					Query:               "/__privatewg/errors/{status}",
+					Service:             "frontlane-errors",
+					Query:               "/__frontlane/errors/{status}",
 					ErrorRequestHeaders: []string{},
 				},
 			},
 			"public-service-errors": {
 				Errors: &traefikErrors{
 					Status:              []string{"502", "504"},
-					Service:             "privatewg-errors",
-					Query:               "/__privatewg/errors/{status}",
+					Service:             "frontlane-errors",
+					Query:               "/__frontlane/errors/{status}",
 					ErrorRequestHeaders: []string{},
 				},
 			},
 			"paused-route": {
-				ReplacePath: &traefikReplacePath{Path: "/__privatewg/errors/503"},
+				ReplacePath: &traefikReplacePath{Path: "/__frontlane/errors/503"},
 			},
 			"denied-route": {
-				ReplacePath: &traefikReplacePath{Path: "/__privatewg/errors/403"},
+				ReplacePath: &traefikReplacePath{Path: "/__frontlane/errors/403"},
 			},
 		},
 		Services: map[string]traefikService{
-			"privatewg-panel": {
+			"frontlane-panel": {
 				LoadBalancer: traefikLoadBalancer{Servers: []traefikServer{{URL: "http://10.77.0.1:8080"}}},
 			},
-			"privatewg-errors": {
+			"frontlane-errors": {
 				LoadBalancer: traefikLoadBalancer{
 					Servers:        []traefikServer{{URL: "http://10.77.0.1:8080"}},
 					PassHostHeader: &falseValue,
@@ -237,7 +237,7 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 			},
 		},
 		ServersTransports: map[string]traefikServersTransport{
-			"privatewg-upstream": {
+			"frontlane-upstream": {
 				MaxIdleConnsPerHost: 5,
 				ForwardingTimeouts: traefikForwardingTimeouts{
 					DialTimeout:           "30s",
@@ -268,15 +268,15 @@ func buildRoutingConfigs(cfg config, services []service, allowed map[int64][]str
 				httpConfig.Services[name] = traefikService{
 					LoadBalancer: traefikLoadBalancer{
 						Servers:          []traefikServer{{URL: "http://" + svc.Target}},
-						ServersTransport: "privatewg-upstream",
+						ServersTransport: "frontlane-upstream",
 					},
 				}
 			} else {
-				router.Service = "privatewg-errors"
+				router.Service = "frontlane-errors"
 				router.Middlewares = []string{"denied-route"}
 			}
 		} else {
-			router.Service = "privatewg-errors"
+			router.Service = "frontlane-errors"
 			router.Middlewares = []string{"paused-route"}
 		}
 		httpConfig.Routers[name] = router
@@ -333,7 +333,7 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".privatewg-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".frontlane-*")
 	if err != nil {
 		return err
 	}

@@ -1,9 +1,9 @@
 .git
 .env
-data/privatewg
+data/frontlane
 data/wireguard
 data/traefik
 data/coredns
 client/config
-privatewg
+frontlane
 README.md

@@ -1,9 +1,9 @@
 services:
-  privatewg:
-    image: ${PRIVATEWG_SERVER_IMAGE:-ghcr.io/melvishniz/privatewg-server:latest}
+  frontlane:
+    image: ${FRONTLANE_SERVER_IMAGE:-ghcr.io/melvishniz/frontlane:latest}
     build: .
     pull_policy: build
-    container_name: privatewg
+    container_name: frontlane
     restart: unless-stopped
     network_mode: host
     cap_drop:
@@ -15,25 +15,25 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      PWG_LISTEN: "10.77.0.1:8080"
-      PWG_PUBLIC_ENDPOINT: "${PWG_PUBLIC_ENDPOINT}"
-      PWG_BASE_DOMAIN: "${PWG_BASE_DOMAIN}"
-      PWG_ADMIN_USER: "${PWG_ADMIN_USER:-admin}"
-      PWG_ADMIN_PASSWORD: "${PWG_ADMIN_PASSWORD}"
-      PWG_COOKIE_SECURE: "true"
+      FRONTLANE_LISTEN: "10.77.0.1:8080"
+      FRONTLANE_PUBLIC_ENDPOINT: "${FRONTLANE_PUBLIC_ENDPOINT}"
+      FRONTLANE_BASE_DOMAIN: "${FRONTLANE_BASE_DOMAIN}"
+      FRONTLANE_ADMIN_USER: "${FRONTLANE_ADMIN_USER:-admin}"
+      FRONTLANE_ADMIN_PASSWORD: "${FRONTLANE_ADMIN_PASSWORD}"
+      FRONTLANE_COOKIE_SECURE: "true"
     volumes:
-      - ./data/privatewg:/data/privatewg
+      - ./data/frontlane:/data/frontlane
       - ./data/wireguard:/etc/wireguard
       - ./data/traefik/dynamic:/data/traefik/dynamic
       - ./data/coredns:/data/coredns
 
   traefik:
     image: traefik:v3.7.12
-    container_name: privatewg-traefik
+    container_name: frontlane-traefik
     restart: unless-stopped
     network_mode: host
     depends_on:
-      - privatewg
+      - frontlane
     command:
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.aliasheadersstrategy=delete
@@ -44,7 +44,7 @@ services:
       - --providers.providersthrottleduration=500ms
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
-      - --certificatesresolvers.letsencrypt.acme.email=${PWG_ACME_EMAIL:?PWG_ACME_EMAIL is required}
+      - --certificatesresolvers.letsencrypt.acme.email=${FRONTLANE_ACME_EMAIL:?FRONTLANE_ACME_EMAIL is required}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
       - --api.dashboard=true
@@ -58,11 +58,11 @@ services:
 
   coredns:
     image: coredns/coredns:1.12.0
-    container_name: privatewg-coredns
+    container_name: frontlane-coredns
     restart: unless-stopped
     network_mode: host
     depends_on:
-      - privatewg
+      - frontlane
     command: -conf /etc/coredns/Corefile
     volumes:
       - ./deploy/coredns/Corefile:/etc/coredns/Corefile:ro
@@ -70,7 +70,7 @@ services:
 
   app-example:
     image: nginx:1.29-alpine
-    container_name: privatewg-app-example
+    container_name: frontlane-app-example
     restart: unless-stopped
     profiles: ["example"]
     ports:

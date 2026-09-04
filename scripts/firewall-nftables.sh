@@ -3,8 +3,8 @@ set -eu
 
 command -v nft >/dev/null 2>&1 || { echo "nftables is not installed" >&2; exit 1; }
 
-cat >/etc/nftables.d/privatewg.nft <<'RULES'
-table inet privatewg {
+cat >/etc/nftables.d/frontlane.nft <<'RULES'
+table inet frontlane {
   chain input {
     type filter hook input priority 0; policy drop;
     ct state established,related accept
@@ -24,7 +24,7 @@ table inet privatewg {
 }
 RULES
 
-nft -c -f /etc/nftables.d/privatewg.nft
-nft list table inet privatewg >/dev/null 2>&1 && nft delete table inet privatewg || true
-nft -f /etc/nftables.d/privatewg.nft
-printf '%s\n' 'PrivateWG firewall active: public UDP 51820 and TCP 80/443; DNS and panel ports available only through wg0.'
+nft -c -f /etc/nftables.d/frontlane.nft
+nft list table inet frontlane >/dev/null 2>&1 && nft delete table inet frontlane || true
+nft -f /etc/nftables.d/frontlane.nft
+printf '%s\n' 'Frontlane firewall active: public UDP 51820 and TCP 80/443; DNS and panel ports available only through wg0.'

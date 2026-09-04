@@ -240,7 +240,7 @@ func (s *server) storeEncryptedConfig(peerID int64, config string) error {
 	if _, err := rand.Read(nonce); err != nil {
 		return err
 	}
-	sealed := gcm.Seal(nonce, nonce, []byte(config), []byte("privatewg-peer-config"))
+	sealed := gcm.Seal(nonce, nonce, []byte(config), []byte("frontlane-peer-config"))
 	return s.store.savePeerConfig(peerID, sealed)
 }
 
@@ -264,7 +264,7 @@ func (s *server) decryptedPeerConfig(p peer) (string, error) {
 		return "", errors.New("peer configuration data is corrupt")
 	}
 	nonce, ciphertext := p.ConfigCipher[:gcm.NonceSize()], p.ConfigCipher[gcm.NonceSize():]
-	plain, err := gcm.Open(nil, nonce, ciphertext, []byte("privatewg-peer-config"))
+	plain, err := gcm.Open(nil, nonce, ciphertext, []byte("frontlane-peer-config"))
 	if err != nil {
 		return "", errors.New("peer configuration could not be decrypted")
 	}
@@ -276,7 +276,7 @@ func (s *server) configEncryptionKey() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(append([]byte("privatewg/config/v1:"), bytes.TrimSpace(serverKey)...))
+	sum := sha256.Sum256(append([]byte("frontlane/config/v1:"), bytes.TrimSpace(serverKey)...))
 	return sum[:], nil
 }
 
